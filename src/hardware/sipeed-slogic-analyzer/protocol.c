@@ -48,14 +48,16 @@ static void LIBUSB_CALL receive_transfer(struct libusb_transfer *transfer) {
 	devc = sdi->priv;
 	usb  = sdi->conn;
 
-	sr_dbg("usb status: %d", transfer->status);
+	sr_dbg("[%p]usb status: %d", transfer, transfer->status);
 	switch (transfer->status) {
 		case LIBUSB_TRANSFER_COMPLETED: 
 		case LIBUSB_TRANSFER_TIMED_OUT: { /* may have received some data */
-			sr_dbg("\ttransfing: %u, transfered: %u, sum: %u/%u",
-					devc->bytes_transferring, devc->bytes_transfered,
-					(devc->bytes_transfered + devc->bytes_transferring),
-					devc->bytes_need_transfer);
+			sr_dbg("\ttransfing: %u - %u, done: %u + %u, remain: %u/%u",
+				devc->bytes_transferring, transfer->length,
+				devc->bytes_transfered, transfer->actual_length,
+				devc->bytes_need_transfer + (transfer->length - transfer->actual_length) - (devc->bytes_transfered + devc->bytes_transferring),
+				devc->bytes_need_transfer
+			);
 
 			devc->bytes_transfered += transfer->actual_length;
 			devc->bytes_transferring -= transfer->length;
@@ -65,7 +67,7 @@ static void LIBUSB_CALL receive_transfer(struct libusb_transfer *transfer) {
 				break;
 			}
 
-			{
+			if (devc->cur_samplechannel != 16) {
 				uint8_t *ptr = transfer->buffer;
 				size_t len = transfer->actual_length;
 				if (devc->cur_samplechannel != 8) {
@@ -83,6 +85,43 @@ static void LIBUSB_CALL receive_transfer(struct libusb_transfer *transfer) {
 				if (devc->cur_samplechannel != 8) {
 					g_free(ptr);
 				}
+			} else {
+				// sr_dbg("samplechannel: %d, actual_length: %u", devc->cur_samplechannel, transfer->actual_length);
+				// devc->cur_samplechannel == 16
+				uint8_t * d = transfer->buffer;
+				size_t len = transfer->actual_length;
+				// sr_dbg("HEAD: %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x",
+				// 	d[0], d[1], d[2], d[3], d[4], d[5], d[6], d[7], d[8], d[9], d[10], d[11], d[12], d[13], d[14], d[15]);
+
+				uint8_t *ptr = g_malloc(len);
+
+				for(size_t i=0; i<len; i+=devc->cur_samplechannel) {
+					for(size_t j=0; j< 8; j++) {
+						#define B(n) (((d[i+(n)] >> 7-j) & 0x1) << ((n)%8))
+						ptr[i+j*2+0] =
+							B(0)|B(1)|B(2)|B(3)|B(4)|B(5)|B(6)|B(7);
+						ptr[i+j*2+1] =
+							B(8)|B(9)|B(10)|B(11)|B(12)|B(13)|B(14)|B(15);
+						#undef B
+
+						// ptr[i+j*2+0] |= 0x1;
+						// ptr[i+j*2+1] |= 0x80;
+					}
+				}
+
+				struct sr_datafeed_logic logic = {
+					.length = len,
+					.unitsize = 2,
+					.data = ptr,
+				};
+			
+				struct sr_datafeed_packet packet = {
+					.type = SR_DF_LOGIC,
+					.payload = &logic
+				};
+			
+				sr_session_send(sdi, &packet);
+				g_free(ptr);
 			}
 
 			size_t bytes_to_transfer = devc->bytes_need_transfer -
@@ -93,7 +132,7 @@ static void LIBUSB_CALL receive_transfer(struct libusb_transfer *transfer) {
 			if (bytes_to_transfer) {
 				transfer->length = bytes_to_transfer;
 				transfer->actual_length = 0;
-				transfer->timeout = devc->timeout * devc->transfers_used;
+				transfer->timeout = 1000 + devc->timeout * devc->transfers_used;
 				ret = libusb_submit_transfer(transfer);
 				if (ret) {
 					sr_warn("Failed to submit transfer: %s", libusb_error_name(ret));
@@ -155,7 +194,8 @@ static int handle_events(int fd, int revents, void *cb_data)
 			devc->transfers[i] = NULL;
 		}
 
-		usb_source_remove(sdi->session, drvc->sr_ctx);
+		// usb_source_remove(sdi->session, drvc->sr_ctx);
+		sr_session_source_remove(sdi->session, -1 * (size_t)drvc->sr_ctx->libusb_ctx);
 		std_session_send_df_end(sdi);
 	}
 
@@ -189,12 +229,23 @@ SR_PRIV int sipeed_slogic_acquisition_start(const struct sr_dev_inst *sdi)
 	// TODO
 	// if(devc->cur_samplechannel != 8) return SR_ERR_SAMPLERATE;
 
+	uint8_t cmd_rst[] = {0x02, 0x00, 0x00, 0x00};
+	ret = libusb_control_transfer(
+		usb->devhdl, LIBUSB_REQUEST_TYPE_VENDOR | LIBUSB_ENDPOINT_OUT, 1, 4,
+		0x0000, (unsigned char *)&cmd_rst, sizeof(cmd_rst), 100);
+	if (ret < 0) {
+		sr_dbg("Unable to send start command: %s", libusb_error_name(ret));
+		return SR_ERR_NA;
+	}
+	sr_dbg("CMD_RST");
+
+
 	sr_dbg("samplerate: %uHz@%uch, samples: %u",
 			devc->cur_samplerate / SR_MHZ(1), 
 			devc->cur_samplechannel, 
 			devc->limit_samples);
 
-	clear_ep(EP_IN, usb->devhdl);
+	// clear_ep(EP_IN, usb->devhdl);
 
 	devc->acq_aborted = FALSE;
   	devc->bytes_need_transfer = 0;
@@ -208,15 +259,16 @@ SR_PRIV int sipeed_slogic_acquisition_start(const struct sr_dev_inst *sdi)
 
 	devc->timeout = get_timeout(devc);
 	sr_dbg("timeout: %ums", devc->timeout);
-	usb_source_add(sdi->session, drvc->sr_ctx, 10,
-			handle_events, (void *)sdi);
+	// usb_source_add(sdi->session, drvc->sr_ctx, 10,
+	// 		handle_events, (void *)sdi);
+
+	sr_session_source_add(sdi->session, -1 * (size_t)drvc->sr_ctx->libusb_ctx, 0, devc->timeout, handle_events, (void *)sdi);
 
 	/* compute needed bytes */
 	uint64_t samples_in_bytes = devc->limit_samples * devc->cur_samplechannel / 8;
 	devc->bytes_need_transfer = samples_in_bytes / devc->transfers_buffer_size;
 	devc->bytes_need_transfer += !!(samples_in_bytes % devc->transfers_buffer_size);
 	devc->bytes_need_transfer *= devc->transfers_buffer_size;
-
 
 	while (devc->transfers_used < NUM_MAX_TRANSFERS && devc->bytes_transfered
 			+ devc->bytes_transferring < devc->bytes_need_transfer)
@@ -246,7 +298,7 @@ SR_PRIV int sipeed_slogic_acquisition_start(const struct sr_dev_inst *sdi)
 
 		libusb_fill_bulk_transfer(transfer, usb->devhdl, EP_IN | LIBUSB_ENDPOINT_IN,
 									dev_buf, bytes_to_transfer, receive_transfer,
-									sdi, devc->timeout * (devc->transfers_used + 1));
+									sdi, 3500 + devc->timeout * (devc->transfers_used + 1));
 		transfer->actual_length = 0;
 
 		ret = libusb_submit_transfer(transfer);
@@ -272,9 +324,13 @@ SR_PRIV int sipeed_slogic_acquisition_start(const struct sr_dev_inst *sdi)
 	cmd.sample_rate = devc->cur_samplerate / SR_MHZ(1);
 	cmd.sample_channel = devc->cur_samplechannel;
 
+	// ret = libusb_control_transfer(
+	// 	usb->devhdl, LIBUSB_REQUEST_TYPE_VENDOR | LIBUSB_ENDPOINT_OUT, CMD_START, 0x0000,
+	// 	0x0000, (unsigned char *)&cmd, 3 /*sizeof(cmd)*/, 100);
+	uint8_t cmd_start[] = {0x01, 0x00, 0x00, 0x00};
 	ret = libusb_control_transfer(
-		usb->devhdl, LIBUSB_REQUEST_TYPE_VENDOR | LIBUSB_ENDPOINT_OUT, CMD_START, 0x0000,
-		0x0000, (unsigned char *)&cmd, 3 /*sizeof(cmd)*/, 100);
+		usb->devhdl, LIBUSB_REQUEST_TYPE_VENDOR | LIBUSB_ENDPOINT_OUT, 1, 4,
+		0x0000, (unsigned char *)&cmd_start, sizeof(cmd_start), 100);
 	if (ret < 0) {
 		sr_dbg("Unable to send start command: %s", libusb_error_name(ret));
 		return SR_ERR_NA;

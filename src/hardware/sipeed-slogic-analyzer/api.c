@@ -84,7 +84,7 @@ static GSList *scan(struct sr_dev_driver *di, GSList *options)
 	}
 	
 	if(!conn) {
-		conn = "359f.0300";
+		conn = "359f.3031";
 	}
 
 	/* Find all slogic compatible devices. */
@@ -112,7 +112,7 @@ static GSList *scan(struct sr_dev_driver *di, GSList *options)
 		sdi = sr_dev_inst_user_new(iManufacturer, iProduct, NULL);
 		if (!sdi) continue;
 
-		for (int i = 0; i < 8; i++) {
+		for (int i = 0; i < 16; i++) {
 			sr_snprintf_ascii(cbuf, sizeof(cbuf), "D%d", i);
 			sr_dev_inst_channel_add(sdi, i, SR_CHANNEL_LOGIC, cbuf);
 		}

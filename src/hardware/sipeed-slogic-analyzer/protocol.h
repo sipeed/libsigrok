@@ -28,7 +28,7 @@
 
 #define LOG_PREFIX "sipeed-slogic-analyzer"
 
-#define EP_IN 0x01
+#define EP_IN 0x02
 #define SIZE_MAX_EP_HS 512
 #define NUM_MAX_TRANSFERS 64
 
@@ -42,6 +42,7 @@ static const uint64_t samplerates[] = {
 	SR_MHZ(10),
 	SR_MHZ(16),
 	SR_MHZ(20),
+	SR_MHZ(25),
 	SR_MHZ(32),
 	SR_MHZ(36),
 	SR_MHZ(40),
@@ -92,7 +93,9 @@ struct dev_context {
 
 static inline void devc_set_samplerate(struct dev_context *devc, uint64_t new_samplerate) {
 	devc->cur_samplerate = new_samplerate;
-	if (new_samplerate >= SR_MHZ(120)) {
+	if (1) {
+		devc->cur_samplechannel = 16;
+	} else if (new_samplerate >= SR_MHZ(120)) {
 		devc->cur_samplechannel = 2;
 	} else if (new_samplerate >= SR_MHZ(40)) {
 		devc->cur_samplechannel = 4;
