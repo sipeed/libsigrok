@@ -44,12 +44,14 @@ enum {
 static const struct slogic_model support_models[] = {
 	[SLogic_LITE_8] = {
 		.name = "Slogic Lite 8",
+		.ep_in = 0x02 | LIBUSB_ENDPOINT_IN,
 		.max_samplerate = SR_MHZ(160),
 		.max_samplechannel = 8,
 		.max_bandwidth = SR_MHZ(320),
 	},
 	[SLogic_BASIC_16_U3] = {
 		.name = "Slogic Basic 16 U3",
+		.ep_in = 0x02 | LIBUSB_ENDPOINT_IN,
 		.max_samplerate = SR_MHZ(1600),
 		.max_samplechannel = 16,
 		.max_bandwidth = SR_MHZ(3200),
@@ -168,7 +170,6 @@ static GSList *scan(struct sr_dev_driver *di, GSList *options)
 		usb_get_port_path(libusb_get_device(usb->devhdl),
 				cbuf, sizeof(cbuf));
 		iPortPath = g_strdup(cbuf);
-		sr_usb_close(usb);
 
 		sdi = sr_dev_inst_user_new(iManufacturer, iProduct, NULL);
 		sdi->serial_num = iSerialNumber;
@@ -197,8 +198,11 @@ static GSList *scan(struct sr_dev_driver *di, GSList *options)
 				devc->digital_group->channels = g_slist_append(
 					devc->digital_group->channels, ch);
 			}
+
+			devc->speed = libusb_get_device_speed(libusb_get_device(usb->devhdl));
 		}
 
+		sr_usb_close(usb);
 		devices = g_slist_append(devices, sdi);
 	}
 	// g_slist_free_full(conn_devices, (GDestroyNotify)sr_usb_dev_inst_free);

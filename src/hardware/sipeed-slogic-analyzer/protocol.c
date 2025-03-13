@@ -45,10 +45,12 @@ static void LIBUSB_CALL receive_transfer(struct libusb_transfer *transfer) {
 	struct sr_usb_dev_inst *usb;
 
 	sdi  = transfer->user_data;
+	if (!sdi)
+		return;
 	devc = sdi->priv;
 	usb  = sdi->conn;
 
-	sr_dbg("[%p]usb status: %d", transfer, transfer->status);
+	sr_spew("[%p]usb status: %d", transfer, transfer->status);
 	switch (transfer->status) {
 		case LIBUSB_TRANSFER_COMPLETED: 
 		case LIBUSB_TRANSFER_TIMED_OUT: { /* may have received some data */
@@ -163,7 +165,7 @@ static int handle_events(int fd, int revents, void *cb_data)
 	di = sdi->driver;
 	drvc = di->context;
 
-	sr_dbg("handle_events enter");
+	sr_spew("handle_events enter");
 
 	if (devc->acq_aborted == TRUE) {
 		for (size_t i = 0; i < NUM_MAX_TRANSFERS; ++i) {
@@ -199,7 +201,6 @@ SR_PRIV int sipeed_slogic_acquisition_start(const struct sr_dev_inst *sdi)
 	struct drv_context *drvc;
 	struct sr_usb_dev_inst *usb;
 
-	struct cmd_start_acquisition cmd;
 	int ret;
 	size_t size_transfer_buf;
 
@@ -208,26 +209,70 @@ SR_PRIV int sipeed_slogic_acquisition_start(const struct sr_dev_inst *sdi)
 	drvc = di->context;
 	usb  = sdi->conn;
 
-	// TODO
-	// if(devc->cur_samplechannel != 8) return SR_ERR_SAMPLERATE;
-
 	uint8_t cmd_rst[] = {0x02, 0x00, 0x00, 0x00};
-	ret = libusb_control_transfer(
-		usb->devhdl, LIBUSB_REQUEST_TYPE_VENDOR | LIBUSB_ENDPOINT_OUT, 1, 4,
-		0x0000, (unsigned char *)&cmd_rst, sizeof(cmd_rst), 100);
+	ret = slogic_basic_16_u3_reg_write(sdi, 0x0004, ARRAY_AND_SIZE(cmd_rst));
 	if (ret < 0) {
-		sr_dbg("Unable to send start command: %s", libusb_error_name(ret));
-		return SR_ERR_NA;
+		sr_err("Unhandled `CMD_RST`");
+		return ret;
 	}
-	sr_dbg("CMD_RST");
-
-
-	sr_dbg("samplerate: %uHz@%uch, samples: %u",
-			devc->cur_samplerate / SR_MHZ(1), 
-			devc->cur_samplechannel, 
-			devc->cur_limit_samples);
-
 	// clear_ep(EP_IN, usb->devhdl);
+
+	sr_info("Need %ux %uch@%uMHz in %ums.", 
+			devc->cur_limit_samples,
+			devc->cur_samplechannel, 
+			devc->cur_samplerate / SR_MHZ(1),
+			1000 * devc->cur_limit_samples / devc->cur_samplerate
+	);
+
+	devc->per_transfer_duration = 500;
+	devc->per_transfer_nbytes = devc->cur_samplerate / SR_KHZ(1) * devc->cur_samplechannel / 8 * devc->per_transfer_duration /* ms */;
+	devc->per_transfer_nbytes = (devc->per_transfer_nbytes + 1023) & ~1023;
+
+	do {
+		struct libusb_transfer *transfer = libusb_alloc_transfer(0);
+		if (!transfer) {
+			sr_err("Failed to allocate libusb transfer!");
+			return SR_ERR_IO;
+		}
+		while (devc->per_transfer_nbytes > 128*1024) { // 128kiB > 500ms * 1MHZ * 2ch
+			devc->per_transfer_duration = devc->per_transfer_nbytes / (devc->cur_samplerate / SR_KHZ(1) * devc->cur_samplechannel / 8);
+			sr_dbg("Plan to receive %u bytes per %ums...", devc->per_transfer_nbytes, devc->per_transfer_duration);
+			
+			uint8_t *dev_buf = g_malloc(devc->per_transfer_nbytes);
+			if (!dev_buf) {
+				sr_warn("Failed to allocate memory: %u bytes!", devc->per_transfer_nbytes);
+				devc->per_transfer_nbytes >>= 1;
+				continue;
+			}
+
+			libusb_fill_bulk_transfer(transfer, usb->devhdl, devc->model->ep_in,
+										dev_buf, devc->per_transfer_nbytes, receive_transfer,
+										NULL, devc->per_transfer_duration);
+
+			ret = libusb_submit_transfer(transfer);
+			libusb_handle_events_timeout(drvc->sr_ctx->libusb_ctx, &(struct timeval){0, 0});
+			if (ret) {
+				sr_warn("Failed to submit transfer: %s!", libusb_error_name(ret));
+				g_free(transfer->buffer);
+				if (ret == LIBUSB_ERROR_NO_MEM)
+					devc->per_transfer_nbytes >>= 1;
+				else
+					return SR_ERR_IO;
+				continue;
+			} else {
+				ret = libusb_cancel_transfer(transfer);
+				libusb_handle_events_timeout(drvc->sr_ctx->libusb_ctx, &(struct timeval){0, 0});
+				g_free(transfer->buffer);
+				break;
+			}
+		}
+		libusb_free_transfer(transfer);
+		if (devc->per_transfer_nbytes < 128*1024) {
+			return SR_ERR_MALLOC;
+		}
+		sr_dbg("Nice plan! :)");
+	} while (0);
+
 
 	devc->acq_aborted = FALSE;
   	devc->bytes_need_transfer = 0;
@@ -257,18 +302,14 @@ SR_PRIV int sipeed_slogic_acquisition_start(const struct sr_dev_inst *sdi)
 	{
 		uint8_t *dev_buf = g_malloc(devc->transfers_buffer_size);
 		if (!dev_buf) {
-			sr_dbg("Failed to allocate memory");
-			sr_dev_acquisition_stop(sdi);
-			return SR_ERR_MALLOC;
+			sr_warn("Failed to allocate memory");
 			break;
 		}
 
 		struct libusb_transfer *transfer = libusb_alloc_transfer(0);
 		if (!transfer) {
 			g_free(dev_buf);
-			sr_dbg("Failed to allocate transfer");
-			sr_dev_acquisition_stop(sdi);
-			return SR_ERR_MALLOC;
+			sr_warn("Failed to allocate transfer");
 			break;
 		}
 
@@ -285,11 +326,9 @@ SR_PRIV int sipeed_slogic_acquisition_start(const struct sr_dev_inst *sdi)
 
 		ret = libusb_submit_transfer(transfer);
 		if (ret) {
-			sr_dbg("Failed to submit transfer: %s.", libusb_error_name(ret));
+			sr_warn("Failed to submit transfer[%d]: %s.", devc->transfers_used, libusb_error_name(ret));
 			g_free(transfer->buffer);
 			libusb_free_transfer(transfer);
-			sr_dev_acquisition_stop(sdi);
-			return SR_ERR_IO;
 			break;
 		}
 		devc->transfers[devc->transfers_used] = transfer;
@@ -299,25 +338,15 @@ SR_PRIV int sipeed_slogic_acquisition_start(const struct sr_dev_inst *sdi)
 	}
 	sr_dbg("Submited %u transfers", devc->transfers_used);
 
-	std_session_send_df_frame_begin(sdi);
 	std_session_send_df_header(sdi);
+	std_session_send_df_frame_begin(sdi);
 
-
-	cmd.sample_rate = devc->cur_samplerate / SR_MHZ(1);
-	cmd.sample_channel = devc->cur_samplechannel;
-
-	// ret = libusb_control_transfer(
-	// 	usb->devhdl, LIBUSB_REQUEST_TYPE_VENDOR | LIBUSB_ENDPOINT_OUT, CMD_START, 0x0000,
-	// 	0x0000, (unsigned char *)&cmd, 3 /*sizeof(cmd)*/, 100);
-	uint8_t cmd_start[] = {0x01, 0x00, 0x00, 0x00};
-	ret = libusb_control_transfer(
-		usb->devhdl, LIBUSB_REQUEST_TYPE_VENDOR | LIBUSB_ENDPOINT_OUT, 1, 4,
-		0x0000, (unsigned char *)&cmd_start, sizeof(cmd_start), 100);
+	uint8_t cmd_run[] = {0x01, 0x00, 0x00, 0x00};
+	ret = slogic_basic_16_u3_reg_write(sdi, 0x0004, ARRAY_AND_SIZE(cmd_run));
 	if (ret < 0) {
-		sr_dbg("Unable to send start command: %s", libusb_error_name(ret));
-		return SR_ERR_NA;
+		sr_err("Unhandled `CMD_RUN`");
+		return ret;
 	}
-	sr_dbg("CMD_STARTED");
 
 	return SR_OK;
 }

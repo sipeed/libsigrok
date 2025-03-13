@@ -34,6 +34,7 @@
 
 struct slogic_model {
 	char *name;
+	uint8_t ep_in;
 	uint64_t max_samplerate; // limit by hardware
 	uint64_t max_samplechannel; // limit by hardware
 	uint64_t max_bandwidth; // limit by hardware
@@ -53,7 +54,17 @@ struct dev_context {
 		uint64_t cur_limit_samples;
 		uint64_t cur_samplerate;
 		uint64_t cur_samplechannel;
-	}; // var
+	}; // configuration
+
+	struct {
+		enum libusb_speed speed;
+
+		uint64_t samples_need_nbytes;
+		uint64_t samples_got_nbytes;
+
+		uint64_t per_transfer_duration; /* unit: ms */
+		uint64_t per_transfer_nbytes;
+	}; // usb
 
 	uint64_t num_transfers;
 	struct libusb_transfer *transfers[NUM_MAX_TRANSFERS];
@@ -152,6 +163,66 @@ static inline void clear_ep(uint8_t ep, libusb_device_handle *usbh) {
 				tmp, sizeof(tmp), &actual_length, 100);
 	} while (actual_length);
 	sr_dbg("Cleared EP: %u", ep);
+}
+
+#define CONTROL_IN_REQ_REG_READ 	0x00
+#define CONTROL_OUT_REQ_REG_WRITE 	0x01
+
+static inline int slogic_basic_16_u3_reg_write(const struct sr_dev_inst *sdi, uint16_t value, uint8_t *data, size_t len)
+{
+	int ret;
+	struct dev_context *devc;
+	struct sr_usb_dev_inst *usb;
+
+	devc = sdi->priv;
+	usb  = sdi->conn;
+
+	sr_spew("%s %u %p:%u.", __func__, value, data, len);
+	if (!data || !len) {
+		sr_err("%s failed(Nothing to write)!", __func__);
+		return SR_ERR_ARG;
+	}
+
+	if ((ret = libusb_control_transfer(
+		usb->devhdl, LIBUSB_REQUEST_TYPE_VENDOR | LIBUSB_ENDPOINT_OUT,
+		CONTROL_OUT_REQ_REG_WRITE,
+		value, 0x0000,
+		(unsigned char *)data, len,
+		500
+	)) < 0) {
+		sr_err("%s failed(libusb: %s)!", __func__, libusb_error_name(ret));
+		return SR_ERR_NA;
+	}
+	return ret;
+}
+
+
+static inline int slogic_basic_16_u3_reg_read(const struct sr_dev_inst *sdi, uint16_t value, uint8_t *data, size_t len)
+{
+	int ret;
+	struct dev_context *devc;
+	struct sr_usb_dev_inst *usb;
+
+	devc = sdi->priv;
+	usb  = sdi->conn;
+
+	sr_spew("%s %u %p:%u.", __func__, value, data, len);
+	if (!data || !len) {
+		sr_err("%s failed(Nothing to read)!", __func__);
+		return SR_ERR_ARG;
+	}
+
+	if ((ret = libusb_control_transfer(
+		usb->devhdl, LIBUSB_REQUEST_TYPE_VENDOR | LIBUSB_ENDPOINT_IN,
+		CONTROL_IN_REQ_REG_READ,
+		value, 0x0000,
+		(unsigned char *)data, len,
+		500
+	)) < 0) {
+		sr_err("%s failed(libusb: %s)!", __func__, libusb_error_name(ret));
+		return SR_ERR_NA;
+	}
+	return ret;
 }
 
 #endif
