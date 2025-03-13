@@ -64,34 +64,20 @@ struct dev_context {
 
 		uint64_t per_transfer_duration; /* unit: ms */
 		uint64_t per_transfer_nbytes;
+
+		size_t num_transfers_completed;
+		size_t num_transfers_used;
+		struct libusb_transfer *transfers[NUM_MAX_TRANSFERS];
 	}; // usb
 
-	uint64_t num_transfers;
-	struct libusb_transfer *transfers[NUM_MAX_TRANSFERS];
+	int acq_aborted;
 
-	gboolean acq_aborted;
-
-	uint64_t timeout;
-
-	size_t transfers_buffer_size;
-
-	size_t bytes_need_transfer;
-	size_t bytes_transferring;
-	size_t bytes_transfered;
-	size_t transfers_used;
-
+	/* Triggers */
+	uint64_t capture_ratio;
 	gboolean trigger_fired;
 	struct soft_trigger_logic *stl;
 
-	uint64_t num_frames;
-	uint64_t sent_samples;
-	int submitted_transfers;
-	int empty_transfer_count;
-
-
 	double voltage_threshold[2];
-	/* Triggers */
-	uint64_t capture_ratio;
 };
 
 #pragma pack(push, 1)
@@ -113,46 +99,6 @@ struct cmd_start_acquisition {
 
 SR_PRIV int sipeed_slogic_acquisition_start(const struct sr_dev_inst *sdi);
 SR_PRIV int sipeed_slogic_acquisition_stop(struct sr_dev_inst *sdi);
-
-static inline size_t to_bytes_per_ms(struct dev_context *devc)
-{
-	return (devc->cur_samplerate * devc->cur_samplechannel) / 8 / 1000;
-}
-
-static inline size_t get_buffer_size(struct dev_context *devc)
-{
-	/**
-	 * The buffer should be large enough to hold 10ms of data and
-	 * a multiple of 210 * 512.
-	 */
-	// const size_t pack_size = SIZE_MAX_EP_HS;
-	// size_t s = 10 * to_bytes_per_ms(devc);
-	// size_t rem = s % (210 * pack_size);
-	// if (rem) s += 210 * pack_size - rem;
-	// return s;
-	return 210 * SIZE_MAX_EP_HS;
-}
-
-static inline size_t get_number_of_transfers(struct dev_context *devc)
-{
-	/* Total buffer size should be able to hold about 500ms of data. */
-	// size_t s = 500 * to_bytes_per_ms(devc);
-	// size_t n = s / get_buffer_size(devc);
-	// size_t rem = s % get_buffer_size(devc);
-	// if (rem) n += 1;
-	// if (n > NUM_MAX_TRANSFERS)
-	// 	return NUM_MAX_TRANSFERS;
-	// return n;
-	return 1;
-}
-
-static inline size_t get_timeout(struct dev_context *devc)
-{
-	size_t total_size = get_buffer_size(devc) *
-			get_number_of_transfers(devc);
-	size_t timeout = total_size / to_bytes_per_ms(devc);
-	return timeout * 5 / 4; /* Leave a headroom of 25% percent. */
-}
 
 static inline void clear_ep(uint8_t ep, libusb_device_handle *usbh) {
 	sr_dbg("Clearring EP: %u", ep);
