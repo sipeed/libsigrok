@@ -234,13 +234,14 @@ SR_PRIV int sipeed_slogic_acquisition_start(const struct sr_dev_inst *sdi)
 			sr_err("Failed to allocate libusb transfer!");
 			return SR_ERR_IO;
 		}
-		while (devc->per_transfer_nbytes > 128*1024) { // 128kiB > 500ms * 1MHZ * 2ch
+		do {
+			devc->per_transfer_nbytes = (devc->per_transfer_nbytes + 1023) & ~1023;
 			devc->per_transfer_duration = devc->per_transfer_nbytes / (devc->cur_samplerate / SR_KHZ(1) * devc->cur_samplechannel / 8);
 			sr_dbg("Plan to receive %u bytes per %ums...", devc->per_transfer_nbytes, devc->per_transfer_duration);
 			
 			uint8_t *dev_buf = g_malloc(devc->per_transfer_nbytes);
 			if (!dev_buf) {
-				sr_warn("Failed to allocate memory: %u bytes!", devc->per_transfer_nbytes);
+				sr_dbg("Failed to allocate memory: %u bytes! Half .", devc->per_transfer_nbytes);
 				devc->per_transfer_nbytes >>= 1;
 				continue;
 			}
@@ -252,24 +253,23 @@ SR_PRIV int sipeed_slogic_acquisition_start(const struct sr_dev_inst *sdi)
 			ret = libusb_submit_transfer(transfer);
 			libusb_handle_events_timeout(drvc->sr_ctx->libusb_ctx, &(struct timeval){0, 0});
 			if (ret) {
-				sr_warn("Failed to submit transfer: %s!", libusb_error_name(ret));
 				g_free(transfer->buffer);
-				if (ret == LIBUSB_ERROR_NO_MEM)
+				if (ret == LIBUSB_ERROR_NO_MEM) {
+					sr_dbg("Failed to submit transfer: %s!", libusb_error_name(ret));
 					devc->per_transfer_nbytes >>= 1;
-				else
+					continue;
+				} else {
+					sr_err("Failed to submit transfer: %s!", libusb_error_name(ret));
 					return SR_ERR_IO;
-				continue;
+				}
 			} else {
 				ret = libusb_cancel_transfer(transfer);
 				libusb_handle_events_timeout(drvc->sr_ctx->libusb_ctx, &(struct timeval){0, 0});
 				g_free(transfer->buffer);
 				break;
 			}
-		}
+		} while (devc->per_transfer_nbytes > 128*1024); // 128kiB > 500ms * 1MHZ * 2ch
 		libusb_free_transfer(transfer);
-		if (devc->per_transfer_nbytes < 128*1024) {
-			return SR_ERR_MALLOC;
-		}
 		sr_dbg("Nice plan! :)");
 	} while (0);
 
