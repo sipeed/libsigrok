@@ -32,36 +32,28 @@
 #define SIZE_MAX_EP_HS 512
 #define NUM_MAX_TRANSFERS 64
 
-static const uint64_t samplerates[] = {
-	/* 160M = 2*2*2*2*2*5M */
-	SR_MHZ(1),
-	SR_MHZ(2),
-	SR_MHZ(4),
-	SR_MHZ(5),
-	SR_MHZ(8),
-	SR_MHZ(10),
-	SR_MHZ(16),
-	SR_MHZ(20),
-	SR_MHZ(25),
-	SR_MHZ(32),
-	SR_MHZ(36),
-	SR_MHZ(40),
-	/* x 4ch */
-	SR_MHZ(64),
-	SR_MHZ(80),
-	/* x 2ch */
-	SR_MHZ(120),
-	SR_MHZ(128),
-	SR_MHZ(144),
-	SR_MHZ(160),
+struct slogic_model {
+	char *name;
+	uint64_t max_samplerate; // limit by hardware
+	uint64_t max_samplechannel; // limit by hardware
+	uint64_t max_bandwidth; // limit by hardware
 };
 
 struct dev_context {
+	struct slogic_model *model;
+
+	struct sr_channel_group *digital_group;
+
 	struct {
-		uint64_t limit_samples;
+		uint64_t limit_samplerate;
+		uint64_t limit_samplechannel;
+	};
+
+	struct {
+		uint64_t cur_limit_samples;
 		uint64_t cur_samplerate;
 		uint64_t cur_samplechannel;
-	};
+	}; // var
 
 	uint64_t num_transfers;
 	struct libusb_transfer *transfers[NUM_MAX_TRANSFERS];
@@ -90,20 +82,6 @@ struct dev_context {
 	/* Triggers */
 	uint64_t capture_ratio;
 };
-
-static inline void devc_set_samplerate(struct dev_context *devc, uint64_t new_samplerate) {
-	devc->cur_samplerate = new_samplerate;
-	if (1) {
-		devc->cur_samplechannel = 16;
-	} else if (new_samplerate >= SR_MHZ(120)) {
-		devc->cur_samplechannel = 2;
-	} else if (new_samplerate >= SR_MHZ(40)) {
-		devc->cur_samplechannel = 4;
-	} else {
-		devc->cur_samplechannel = 8;
-	}
-	sr_info("rebind sample channel to %uCH", devc->cur_samplechannel);
-}
 
 #pragma pack(push, 1)
 struct cmd_start_acquisition {

@@ -32,7 +32,64 @@ static const uint32_t devopts[] = {
 	SR_CONF_CONTINUOUS,
 	SR_CONF_LIMIT_SAMPLES | SR_CONF_GET | SR_CONF_SET,
 	SR_CONF_SAMPLERATE    | SR_CONF_GET | SR_CONF_SET | SR_CONF_LIST,
+	SR_CONF_BUFFERSIZE | SR_CONF_GET | SR_CONF_SET | SR_CONF_LIST,
 	SR_CONF_TRIGGER_MATCH | SR_CONF_GET | SR_CONF_LIST,
+};
+
+enum {
+	SLogic_LITE_8 = 0,
+	SLogic_BASIC_16_U3,
+};
+
+static const struct slogic_model support_models[] = {
+	[SLogic_LITE_8] = {
+		.name = "Slogic Lite 8",
+		.max_samplerate = SR_MHZ(160),
+		.max_samplechannel = 8,
+		.max_bandwidth = SR_MHZ(320),
+	},
+	[SLogic_BASIC_16_U3] = {
+		.name = "Slogic Basic 16 U3",
+		.max_samplerate = SR_MHZ(1600),
+		.max_samplechannel = 16,
+		.max_bandwidth = SR_MHZ(3200),
+	},
+};
+
+static const uint64_t samplerates[] = {
+	/* 160M = 2^5*5M */
+	/* 1600M = 2^6*5^2M */
+	SR_MHZ(1),
+	SR_MHZ(2),
+	SR_MHZ(4),
+	SR_MHZ(5),
+	SR_MHZ(8),
+	SR_MHZ(10),
+	SR_MHZ(16),
+	SR_MHZ(20),
+	SR_MHZ(32),
+
+	/* Slogic Lite 8 */
+	/* x 8ch */
+	SR_MHZ(40),
+	/* x 4ch */
+	SR_MHZ(80),
+	/* x 2ch */
+	SR_MHZ(160),
+
+	/* Slogic Basic 16 U3 */
+	/* x 16ch */
+	SR_MHZ(200),
+	/* x 8ch */
+	SR_MHZ(400),
+	/* x 4ch */
+	SR_MHZ(800),
+	/* x 2ch */
+	SR_MHZ(1600),
+};
+
+static const uint64_t buffersizes[] = {
+	2, 4, 8, 16
 };
 
 static const int32_t trigger_matches[] = {
@@ -61,13 +118,17 @@ static GSList *scan(struct sr_dev_driver *di, GSList *options)
 	char cbuf[128];
 	char *iManufacturer, *iProduct, *iSerialNumber, *iPortPath;
 
+	struct sr_channel *ch;
+	unsigned int i;
+	gchar *channel_name;
+
 	(void)options;
 
 	conn = NULL;
 
 	devices = NULL;
 	drvc = di->context;
-	drvc->instances = NULL;
+	// drvc->instances = NULL;
 	
 	/* scan for devices, either based on a SR_CONF_CONN option
 	 * or on a USB scan. */
@@ -110,13 +171,6 @@ static GSList *scan(struct sr_dev_driver *di, GSList *options)
 		sr_usb_close(usb);
 
 		sdi = sr_dev_inst_user_new(iManufacturer, iProduct, NULL);
-		if (!sdi) continue;
-
-		for (int i = 0; i < 16; i++) {
-			sr_snprintf_ascii(cbuf, sizeof(cbuf), "D%d", i);
-			sr_dev_inst_channel_add(sdi, i, SR_CHANNEL_LOGIC, cbuf);
-		}
-		
 		sdi->serial_num = iSerialNumber;
 		sdi->connection_id = iPortPath;
 		sdi->status = SR_ST_INACTIVE;
@@ -126,7 +180,24 @@ static GSList *scan(struct sr_dev_driver *di, GSList *options)
 		devc = g_malloc0(sizeof(struct dev_context));
 		sdi->priv = devc;
 
+		{
+			devc->model = &support_models[SLogic_BASIC_16_U3];
 
+			devc->limit_samplechannel = devc->model->max_samplechannel;
+			devc->limit_samplerate = devc->model->max_bandwidth / devc->model->max_samplechannel;
+
+			devc->cur_samplechannel = devc->limit_samplechannel;
+			devc->cur_samplerate = devc->limit_samplerate;
+
+			devc->digital_group = sr_channel_group_new(sdi, "LA", NULL);
+			for (i = 0; i < 16; i++) {
+				channel_name = g_strdup_printf("D%u", i);
+				ch = sr_channel_new(sdi, i, SR_CHANNEL_LOGIC, TRUE, channel_name);
+				g_free(channel_name);
+				devc->digital_group->channels = g_slist_append(
+					devc->digital_group->channels, ch);
+			}
+		}
 
 		devices = g_slist_append(devices, sdi);
 	}
@@ -172,8 +243,6 @@ static int dev_open(struct sr_dev_inst *sdi)
 		return SR_ERR;
 	}
 
-	devc_set_samplerate(devc, samplerates[7]);
-	
 	return std_dummy_dev_open(sdi);
 }
 
@@ -204,9 +273,9 @@ static int dev_close(struct sr_dev_inst *sdi)
 			break;
 		}
 	}
-	
+
 	sr_usb_close(usb);
-	
+
 	return std_dummy_dev_close(sdi);
 }
 
@@ -225,8 +294,11 @@ static int config_get(uint32_t key, GVariant **data,
 	case SR_CONF_SAMPLERATE:
 		*data = g_variant_new_uint64(devc->cur_samplerate);
 		break;
+	case SR_CONF_BUFFERSIZE:
+		*data = g_variant_new_uint64(devc->cur_samplechannel);
+		break;
 	case SR_CONF_LIMIT_SAMPLES:
-		*data = g_variant_new_uint64(devc->limit_samples);
+		*data = g_variant_new_uint64(devc->cur_limit_samples);
 		break;
 	default:
 		return SR_ERR_NA;
@@ -248,25 +320,42 @@ static int config_set(uint32_t key, GVariant *data,
 	ret = SR_OK;
 	switch (key) {
 	case SR_CONF_SAMPLERATE:
-		if (std_u64_idx(data, ARRAY_AND_SIZE(samplerates)) < 0) {
-			ret = SR_ERR_ARG;
+		if (g_variant_get_uint64(data) > devc->limit_samplerate || std_u64_idx(data, ARRAY_AND_SIZE(samplerates)) < 0) {
+			devc->cur_samplerate = devc->limit_samplerate;
+			sr_warn("Reach limit or not supported, wrap to %uMHz.", devc->limit_samplerate/SR_MHZ(1));
 		} else {
-			devc_set_samplerate(devc, g_variant_get_uint64(data));
-			{
-			size_t idx = 0;
-				for (GSList *l = sdi->channels; l; l = l->next, idx += 1) {
-					struct sr_channel *ch = l->data;
-					if (ch->type == SR_CHANNEL_LOGIC) { /* Might as well do this now, these are static. */
-						sr_dev_channel_enable(ch, (idx >= devc->cur_samplechannel) ? FALSE : TRUE);
-					} else {
-						return SR_ERR_BUG;
-					}
+			devc->cur_samplerate = g_variant_get_uint64(data);
+		}
+		devc->limit_samplechannel = devc->model->max_bandwidth / devc->cur_samplerate;
+		if (devc->limit_samplechannel > devc->model->max_samplechannel)
+			devc->limit_samplechannel = devc->model->max_samplechannel;
+		break;
+	case SR_CONF_BUFFERSIZE:
+		if (g_variant_get_uint64(data) > devc->limit_samplechannel || std_u64_idx(data, ARRAY_AND_SIZE(buffersizes)) < 0) {
+			devc->cur_samplechannel = devc->limit_samplechannel;
+			sr_warn("Reach limit or not supported, wrap to %uch.", devc->limit_samplechannel);
+		} else {
+			devc->cur_samplechannel = g_variant_get_uint64(data);
+		}
+		devc->limit_samplerate = devc->model->max_bandwidth / devc->cur_samplechannel;
+		if (devc->limit_samplerate > devc->model->max_samplerate)
+			devc->limit_samplerate = devc->model->max_samplerate;
+
+		// [en|dis]able channels and dbg
+		{
+			for (GSList *l = devc->digital_group->channels; l; l = l->next) {
+				struct sr_channel *ch = l->data;
+				if (ch->type == SR_CHANNEL_LOGIC) { /* Might as well do this now, these are static. */
+					sr_dev_channel_enable(ch, (ch->index >= devc->cur_samplechannel) ? FALSE : TRUE);
+				} else {
+					sr_warn("devc->digital_group->channels[%u] is not Logic?", ch->index);
 				}
+				sr_dbg("\tch[%2u] %-3s:%d %sabled priv:%p.", ch->index, ch->name, ch->type, ch->enabled?"en":"dis", ch->priv);
 			}
 		}
 		break;
 	case SR_CONF_LIMIT_SAMPLES:
-		devc->limit_samples = g_variant_get_uint64(data);
+		devc->cur_limit_samples = g_variant_get_uint64(data);
 		break;
 	default:
 		ret = SR_ERR_NA;
@@ -279,6 +368,11 @@ static int config_list(uint32_t key, GVariant **data,
 	const struct sr_dev_inst *sdi, const struct sr_channel_group *cg)
 {
 	int ret;
+	struct dev_context *devc;
+
+	(void)cg;
+
+	devc = sdi ? (sdi->priv) : NULL;
 
 	ret = SR_OK;
 	switch (key) {
@@ -288,7 +382,10 @@ static int config_list(uint32_t key, GVariant **data,
 		ret = STD_CONFIG_LIST(key, data, sdi, cg, scanopts, drvopts, devopts);
 		break;
 	case SR_CONF_SAMPLERATE:
-		*data = std_gvar_samplerates(ARRAY_AND_SIZE(samplerates));
+		*data = std_gvar_samplerates(samplerates, 1+std_u64_idx(g_variant_new_uint64(devc->limit_samplerate), ARRAY_AND_SIZE(samplerates)));
+		break;
+	case SR_CONF_BUFFERSIZE:
+		*data = std_gvar_array_u64(buffersizes, 1+std_u64_idx(g_variant_new_uint64(devc->limit_samplechannel), ARRAY_AND_SIZE(buffersizes)));
 		break;
 	case SR_CONF_TRIGGER_MATCH:
 		*data = std_gvar_array_i32(ARRAY_AND_SIZE(trigger_matches));

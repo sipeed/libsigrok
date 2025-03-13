@@ -67,25 +67,7 @@ static void LIBUSB_CALL receive_transfer(struct libusb_transfer *transfer) {
 				break;
 			}
 
-			if (devc->cur_samplechannel != 16) {
-				uint8_t *ptr = transfer->buffer;
-				size_t len = transfer->actual_length;
-				if (devc->cur_samplechannel != 8) {
-					size_t step = 8 / devc->cur_samplechannel;
-					uint8_t mask = 0xff >> (8 - devc->cur_samplechannel);
-					len *= step;
-					ptr = g_malloc(len);
-					for(size_t i=0; i<transfer->actual_length; i++) {
-						for(size_t j=0; j<step; j++) {
-							ptr[i*step+j] = mask & (transfer->buffer[i] >> (j * devc->cur_samplechannel));
-						}
-					}
-				}
-				submit_data(ptr, len, sdi);
-				if (devc->cur_samplechannel != 8) {
-					g_free(ptr);
-				}
-			} else {
+			{
 				// sr_dbg("samplechannel: %d, actual_length: %u", devc->cur_samplechannel, transfer->actual_length);
 				// devc->cur_samplechannel == 16
 				uint8_t * d = transfer->buffer;
@@ -95,7 +77,7 @@ static void LIBUSB_CALL receive_transfer(struct libusb_transfer *transfer) {
 
 				uint8_t *ptr = g_malloc(len);
 
-				for(size_t i=0; i<len; i+=devc->cur_samplechannel) {
+				for(size_t i=0; i<len; i+=16) {
 					for(size_t j=0; j< 8; j++) {
 						#define B(n) (((d[i+(n)] >> 7-j) & 0x1) << ((n)%8))
 						ptr[i+j*2+0] =
@@ -111,7 +93,7 @@ static void LIBUSB_CALL receive_transfer(struct libusb_transfer *transfer) {
 
 				struct sr_datafeed_logic logic = {
 					.length = len,
-					.unitsize = 2,
+					.unitsize = (devc->cur_samplechannel + 7)/8,
 					.data = ptr,
 				};
 			
@@ -243,7 +225,7 @@ SR_PRIV int sipeed_slogic_acquisition_start(const struct sr_dev_inst *sdi)
 	sr_dbg("samplerate: %uHz@%uch, samples: %u",
 			devc->cur_samplerate / SR_MHZ(1), 
 			devc->cur_samplechannel, 
-			devc->limit_samples);
+			devc->cur_limit_samples);
 
 	// clear_ep(EP_IN, usb->devhdl);
 
@@ -265,7 +247,7 @@ SR_PRIV int sipeed_slogic_acquisition_start(const struct sr_dev_inst *sdi)
 	sr_session_source_add(sdi->session, -1 * (size_t)drvc->sr_ctx->libusb_ctx, 0, devc->timeout, handle_events, (void *)sdi);
 
 	/* compute needed bytes */
-	uint64_t samples_in_bytes = devc->limit_samples * devc->cur_samplechannel / 8;
+	uint64_t samples_in_bytes = devc->cur_limit_samples * devc->cur_samplechannel / 8;
 	devc->bytes_need_transfer = samples_in_bytes / devc->transfers_buffer_size;
 	devc->bytes_need_transfer += !!(samples_in_bytes % devc->transfers_buffer_size);
 	devc->bytes_need_transfer *= devc->transfers_buffer_size;
