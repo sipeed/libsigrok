@@ -93,12 +93,15 @@ struct dev_context {
 SR_PRIV int sipeed_slogic_acquisition_start(const struct sr_dev_inst *sdi);
 SR_PRIV int sipeed_slogic_acquisition_stop(struct sr_dev_inst *sdi);
 
-static inline void clear_ep(uint8_t ep, libusb_device_handle *usbh) {
-	sr_dbg("Clearring EP: 0x%02x", ep);
+static inline void clear_ep(const struct sr_dev_inst *sdi) {
+	struct dev_context *devc = sdi->priv;
+	struct sr_usb_dev_inst *usb = sdi->conn;
+	uint8_t ep = devc->model->ep_in;
+
 	uint8_t tmp[1024];
 	int actual_length = 0;
 	do {
-		libusb_bulk_transfer(usbh, ep | LIBUSB_ENDPOINT_IN,
+		libusb_bulk_transfer(usb->devhdl, ep,
 				tmp, sizeof(tmp), &actual_length, 100);
 	} while (actual_length);
 	sr_dbg("Cleared EP: 0x%02x", ep);

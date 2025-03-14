@@ -46,7 +46,7 @@ static const struct slogic_model support_models[] = {
 	{
 		.name = "Slogic Lite 8",
 		.pid = 0x0300,
-		.ep_in = 0x02 | LIBUSB_ENDPOINT_IN,
+		.ep_in = 0x01 | LIBUSB_ENDPOINT_IN,
 		.max_samplerate = SR_MHZ(160),
 		.max_samplechannel = 8,
 		.max_bandwidth = SR_MHZ(320),
@@ -236,9 +236,6 @@ static int dev_open(struct sr_dev_inst *sdi)
 	struct sr_dev_driver *di;
 	struct drv_context *drvc;
 
-
-	if (!sdi) return SR_ERR_DEV_CLOSED;
-	/* TODO: get handle from sdi->conn and open it. */
 	usb  = sdi->conn;
 	devc = sdi->priv;
 	di	 = sdi->driver;
@@ -276,7 +273,6 @@ static int dev_close(struct sr_dev_inst *sdi)
 	struct sr_dev_driver *di;
 	struct drv_context *drvc;
 
-	/* TODO: get handle from sdi->conn and close it. */
 	usb  = sdi->conn;
 	devc = sdi->priv;
 	di	 = sdi->driver;
@@ -398,7 +394,6 @@ static int config_list(uint32_t key, GVariant **data,
 
 	ret = SR_OK;
 	switch (key) {
-	/* TODO */
 	case SR_CONF_SCAN_OPTIONS:
 	case SR_CONF_DEVICE_OPTIONS:
 		ret = STD_CONFIG_LIST(key, data, sdi, cg, scanopts, drvopts, devopts);
@@ -472,9 +467,9 @@ static int slogic_lite_8_remote_run(const struct sr_dev_inst *sdi) {
 static int slogic_lite_8_remote_stop(const struct sr_dev_inst *sdi) {
 	struct dev_context *devc = sdi->priv;
 	struct sr_usb_dev_inst *usb = sdi->conn;
-	// int ret = slogic_usb_control_write(sdi, CMD_STOP, 0x0000, 0x0000, NULL, 0, 500);
-	clear_ep(devc->model->ep_in, usb->devhdl);
-	return 0;
+	int ret = slogic_usb_control_write(sdi, CMD_STOP, 0x0000, 0x0000, NULL, 0, 500);
+	clear_ep(sdi);
+	return ret;
 }
 /* Slogic Lite 8 end */
 

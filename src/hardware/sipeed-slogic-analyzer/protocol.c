@@ -81,6 +81,7 @@ static void LIBUSB_CALL receive_transfer(struct libusb_transfer *transfer) {
 				break;
 			}
 
+			/* TODO: move out submit to ensure continuous transfers */
 			if (1) {
 				uint8_t * d = transfer->buffer;
 				size_t len = transfer->actual_length;
@@ -189,9 +190,6 @@ static int handle_events(int fd, int revents, void *cb_data)
 
 SR_PRIV int sipeed_slogic_acquisition_start(const struct sr_dev_inst *sdi)
 {
-	/* TODO: configure hardware, reset acquisition state, set up
-	 * callbacks and send header packet. */
-
 	struct sr_dev_driver *di;
 	struct dev_context *devc;
 	struct drv_context *drvc;
@@ -208,7 +206,7 @@ SR_PRIV int sipeed_slogic_acquisition_start(const struct sr_dev_inst *sdi)
 		sr_err("Unhandled `CMD_STOP`");
 		return ret;
 	}
-	// clear_ep(devc->model->ep_in, usb->devhdl);
+	// clear_ep(sdi);
 
 	devc->samples_got_nbytes = 0;
 	devc->samples_need_nbytes = devc->cur_limit_samples * devc->cur_samplechannel / 8;
