@@ -78,7 +78,7 @@ static void LIBUSB_CALL receive_transfer(struct libusb_transfer *transfer) {
 				transfer->timeout = (TRANSFERS_DURATION_TOLERANCE + 1) * devc->per_transfer_duration * (devc->num_transfers_used + 1);
 				ret = libusb_submit_transfer(transfer);
 				if (ret) {
-					sr_warn("Failed to submit transfer: %s", libusb_error_name(ret));
+					sr_dbg("Failed to submit transfer: %s", libusb_error_name(ret));
 					devc->num_transfers_used -= 1;
 				} else {
 					sr_spew("Resubmit transfer: %p", transfer);
@@ -248,13 +248,13 @@ SR_PRIV int sipeed_slogic_acquisition_start(const struct sr_dev_inst *sdi)
 	{
 		uint8_t *dev_buf = g_malloc(devc->per_transfer_nbytes);
 		if (!dev_buf) {
-			sr_warn("Failed to allocate memory[%d]", devc->num_transfers_used);
+			sr_dbg("Failed to allocate memory[%d]", devc->num_transfers_used);
 			break;
 		}
 
 		struct libusb_transfer *transfer = libusb_alloc_transfer(0);
 		if (!transfer) {
-			sr_warn("Failed to allocate transfer[%d]", devc->num_transfers_used);
+			sr_dbg("Failed to allocate transfer[%d]", devc->num_transfers_used);
 			g_free(dev_buf);
 			break;
 		}
@@ -266,7 +266,7 @@ SR_PRIV int sipeed_slogic_acquisition_start(const struct sr_dev_inst *sdi)
 
 		ret = libusb_submit_transfer(transfer);
 		if (ret) {
-			sr_warn("Failed to submit transfer[%d]: %s.", devc->num_transfers_used, libusb_error_name(ret));
+			sr_dbg("Failed to submit transfer[%d]: %s.", devc->num_transfers_used, libusb_error_name(ret));
 			g_free(transfer->buffer);
 			libusb_free_transfer(transfer);
 			break;

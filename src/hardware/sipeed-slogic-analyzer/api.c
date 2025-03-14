@@ -471,9 +471,12 @@ static int slogic_lite_8_remote_run(const struct sr_dev_inst *sdi) {
 static int slogic_lite_8_remote_stop(const struct sr_dev_inst *sdi) {
 	struct dev_context *devc = sdi->priv;
 	struct sr_usb_dev_inst *usb = sdi->conn;
-	int ret = slogic_usb_control_write(sdi, CMD_STOP, 0x0000, 0x0000, NULL, 0, 500);
 	clear_ep(sdi);
-	return ret;
+	return SR_OK;
+	/* not stable, but can be ignored */
+	// int ret = slogic_usb_control_write(sdi, CMD_STOP, 0x0000, 0x0000, NULL, 0, 500);
+	// clear_ep(sdi);
+	// return ret;
 }
 
 static void slogic_lite_8_submit_raw_data(void *data, size_t len, const struct sr_dev_inst *sdi) {
