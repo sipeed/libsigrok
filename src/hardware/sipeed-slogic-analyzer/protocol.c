@@ -204,10 +204,8 @@ SR_PRIV int sipeed_slogic_acquisition_start(const struct sr_dev_inst *sdi)
 	drvc = di->context;
 	usb  = sdi->conn;
 
-	uint8_t cmd_rst[] = {0x02, 0x00, 0x00, 0x00};
-	ret = slogic_basic_16_u3_reg_write(sdi, 0x0004, ARRAY_AND_SIZE(cmd_rst));
-	if (ret < 0) {
-		sr_err("Unhandled `CMD_RST`");
+	if ((ret = devc->model->operation.remote_stop(sdi)) < 0) {
+		sr_err("Unhandled `CMD_STOP`");
 		return ret;
 	}
 	// clear_ep(devc->model->ep_in, usb->devhdl);
@@ -319,9 +317,7 @@ SR_PRIV int sipeed_slogic_acquisition_start(const struct sr_dev_inst *sdi)
 	devc->transfers_reached_time_start = g_get_monotonic_time();
 	devc->transfers_reached_time_latest = devc->transfers_reached_time_start;
 
-	uint8_t cmd_run[] = {0x01, 0x00, 0x00, 0x00};
-	ret = slogic_basic_16_u3_reg_write(sdi, 0x0004, ARRAY_AND_SIZE(cmd_run));
-	if (ret < 0) {
+	if ((ret = devc->model->operation.remote_run(sdi)) < 0) {
 		sr_err("Unhandled `CMD_RUN`");
 		return ret;
 	}

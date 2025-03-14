@@ -36,26 +36,41 @@ static const uint32_t devopts[] = {
 	SR_CONF_TRIGGER_MATCH | SR_CONF_GET | SR_CONF_LIST,
 };
 
-enum {
-	SLogic_LITE_8 = 0,
-	SLogic_BASIC_16_U3,
-};
+
+static int slogic_lite_8_remote_run(const struct sr_dev_inst *sdi);
+static int slogic_lite_8_remote_stop(const struct sr_dev_inst *sdi);
+static int slogic_basic_16_remote_run(const struct sr_dev_inst *sdi);
+static int slogic_basic_16_remote_stop(const struct sr_dev_inst *sdi);
 
 static const struct slogic_model support_models[] = {
-	[SLogic_LITE_8] = {
+	{
 		.name = "Slogic Lite 8",
+		.pid = 0x0300,
 		.ep_in = 0x02 | LIBUSB_ENDPOINT_IN,
 		.max_samplerate = SR_MHZ(160),
 		.max_samplechannel = 8,
 		.max_bandwidth = SR_MHZ(320),
+		.operation = {
+			.remote_run = slogic_lite_8_remote_run,
+			.remote_stop = slogic_lite_8_remote_stop,
+		},
 	},
-	[SLogic_BASIC_16_U3] = {
+	{
 		.name = "Slogic Basic 16 U3",
+		.pid = 0x3031,
 		.ep_in = 0x02 | LIBUSB_ENDPOINT_IN,
 		.max_samplerate = SR_MHZ(1600),
 		.max_samplechannel = 16,
 		.max_bandwidth = SR_MHZ(3200),
+		.operation = {
+			.remote_run = slogic_basic_16_remote_run,
+			.remote_stop = slogic_basic_16_remote_stop,
+		},
 	},
+	{
+		.name = NULL,
+		.pid = 0x0000,
+	}
 };
 
 static const uint64_t samplerates[] = {
@@ -112,6 +127,7 @@ static GSList *scan(struct sr_dev_driver *di, GSList *options)
 	struct drv_context *drvc;
 	struct dev_context *devc;
 
+	struct slogic_model *model;
 	struct sr_config *option;
 	struct libusb_device_descriptor des;
 	GSList *devices;
@@ -139,73 +155,75 @@ static GSList *scan(struct sr_dev_driver *di, GSList *options)
 		switch (option->key) {
 		case SR_CONF_CONN:
 			conn = g_variant_get_string(option->data, NULL);
-			sr_info("use conn: %s", conn);
+			sr_info("Use conn: %s", conn);
+			sr_err("Not supported now!");
+			return NULL;
 			break;
 		default:
 			sr_warn("Unhandled option key: %u", option->key);
 		}
 	}
-	
-	if(!conn) {
-		conn = "359f.3031";
-	}
 
-	/* Find all slogic compatible devices. */
-	conn_devices = sr_usb_find(drvc->sr_ctx->libusb_ctx, conn);
-	for(l = conn_devices; l; l = l->next) {
-		usb = l->data;
-		ret = sr_usb_open(drvc->sr_ctx->libusb_ctx, usb);
-		if (SR_OK != ret) continue;
-		libusb_get_device_descriptor(
-			libusb_get_device(usb->devhdl), &des);
-		libusb_get_string_descriptor_ascii(usb->devhdl,
-				des.iManufacturer, cbuf, sizeof(cbuf));
-		iManufacturer = g_strdup(cbuf);
-		libusb_get_string_descriptor_ascii(usb->devhdl,
-				des.iProduct, cbuf, sizeof(cbuf));
-		iProduct = g_strdup(cbuf);
-		libusb_get_string_descriptor_ascii(usb->devhdl,
-				des.iSerialNumber, cbuf, sizeof(cbuf));
-		iSerialNumber = g_strdup(cbuf);
-		usb_get_port_path(libusb_get_device(usb->devhdl),
-				cbuf, sizeof(cbuf));
-		iPortPath = g_strdup(cbuf);
+	for (model = &support_models[0]; model->name; model++) {
+		conn = g_strdup_printf("%04x.%04x", USB_VID_SIPEED, model->pid);
+		/* Find all slogic compatible devices. */
+		conn_devices = sr_usb_find(drvc->sr_ctx->libusb_ctx, conn);
+		for(l = conn_devices; l; l = l->next) {
+			usb = l->data;
+			ret = sr_usb_open(drvc->sr_ctx->libusb_ctx, usb);
+			if (SR_OK != ret) continue;
+			libusb_get_device_descriptor(
+				libusb_get_device(usb->devhdl), &des);
+			libusb_get_string_descriptor_ascii(usb->devhdl,
+					des.iManufacturer, cbuf, sizeof(cbuf));
+			iManufacturer = g_strdup(cbuf);
+			libusb_get_string_descriptor_ascii(usb->devhdl,
+					des.iProduct, cbuf, sizeof(cbuf));
+			iProduct = g_strdup(cbuf);
+			libusb_get_string_descriptor_ascii(usb->devhdl,
+					des.iSerialNumber, cbuf, sizeof(cbuf));
+			iSerialNumber = g_strdup(cbuf);
+			usb_get_port_path(libusb_get_device(usb->devhdl),
+					cbuf, sizeof(cbuf));
+			iPortPath = g_strdup(cbuf);
 
-		sdi = sr_dev_inst_user_new(iManufacturer, iProduct, NULL);
-		sdi->serial_num = iSerialNumber;
-		sdi->connection_id = iPortPath;
-		sdi->status = SR_ST_INACTIVE;
-		sdi->conn = usb;
-		sdi->inst_type = SR_INST_USB;
+			sdi = sr_dev_inst_user_new(iManufacturer, iProduct, NULL);
+			sdi->serial_num = iSerialNumber;
+			sdi->connection_id = iPortPath;
+			sdi->status = SR_ST_INACTIVE;
+			sdi->conn = usb;
+			sdi->inst_type = SR_INST_USB;
 
-		devc = g_malloc0(sizeof(struct dev_context));
-		sdi->priv = devc;
+			devc = g_malloc0(sizeof(struct dev_context));
+			sdi->priv = devc;
 
-		{
-			devc->model = &support_models[SLogic_BASIC_16_U3];
+			{
+				devc->model = model;
 
-			devc->limit_samplechannel = devc->model->max_samplechannel;
-			devc->limit_samplerate = devc->model->max_bandwidth / devc->model->max_samplechannel;
+				devc->limit_samplechannel = devc->model->max_samplechannel;
+				devc->limit_samplerate = devc->model->max_bandwidth / devc->model->max_samplechannel;
 
-			devc->cur_samplechannel = devc->limit_samplechannel;
-			devc->cur_samplerate = devc->limit_samplerate;
+				devc->cur_samplechannel = devc->limit_samplechannel;
+				devc->cur_samplerate = devc->limit_samplerate;
 
-			devc->digital_group = sr_channel_group_new(sdi, "LA", NULL);
-			for (i = 0; i < 16; i++) {
-				channel_name = g_strdup_printf("D%u", i);
-				ch = sr_channel_new(sdi, i, SR_CHANNEL_LOGIC, TRUE, channel_name);
-				g_free(channel_name);
-				devc->digital_group->channels = g_slist_append(
-					devc->digital_group->channels, ch);
+				devc->digital_group = sr_channel_group_new(sdi, "LA", NULL);
+				for (i = 0; i < devc->model->max_samplechannel; i++) {
+					channel_name = g_strdup_printf("D%u", i);
+					ch = sr_channel_new(sdi, i, SR_CHANNEL_LOGIC, TRUE, channel_name);
+					g_free(channel_name);
+					devc->digital_group->channels = g_slist_append(
+						devc->digital_group->channels, ch);
+				}
+
+				devc->speed = libusb_get_device_speed(libusb_get_device(usb->devhdl));
 			}
 
-			devc->speed = libusb_get_device_speed(libusb_get_device(usb->devhdl));
+			sr_usb_close(usb);
+			devices = g_slist_append(devices, sdi);
 		}
-
-		sr_usb_close(usb);
-		devices = g_slist_append(devices, sdi);
+		// g_slist_free_full(conn_devices, (GDestroyNotify)sr_usb_dev_inst_free);
+		g_free(conn);
 	}
-	// g_slist_free_full(conn_devices, (GDestroyNotify)sr_usb_dev_inst_free);
 
 	return std_scan_complete(di, devices);
 }
@@ -420,3 +438,116 @@ static struct sr_dev_driver sipeed_slogic_analyzer_driver_info = {
 	.context = NULL,
 };
 SR_REGISTER_DEV_DRIVER(sipeed_slogic_analyzer_driver_info);
+
+
+static int slogic_usb_control_write(const struct sr_dev_inst *sdi, uint8_t request, uint16_t value, uint16_t index, uint8_t *data, size_t len, int timeout);
+static int slogic_usb_control_read(const struct sr_dev_inst *sdi, uint8_t request, uint16_t value, uint16_t index, uint8_t *data, size_t len, int timeout);
+
+/* Slogic Lite 8 start */
+#pragma pack(push, 1)
+struct cmd_start_acquisition {
+  union {
+    struct {
+      uint8_t sample_rate_l;
+      uint8_t sample_rate_h;
+    };
+    uint16_t sample_rate;
+  };
+	uint8_t sample_channel;
+};
+#pragma pack(pop)
+
+#define CMD_START	0xb1
+#define CMD_STOP	0xb3
+
+static int slogic_lite_8_remote_run(const struct sr_dev_inst *sdi) {
+	struct dev_context *devc = sdi->priv;
+	const struct cmd_start_acquisition cmd_run = {
+		.sample_rate = devc->cur_samplerate / SR_MHZ(1),
+		.sample_channel = devc->cur_samplechannel,
+	};
+	return slogic_usb_control_write(sdi, CMD_START, 0x0000, 0x0000, (uint8_t *)&cmd_run, sizeof(cmd_run), 500);
+}
+
+static int slogic_lite_8_remote_stop(const struct sr_dev_inst *sdi) {
+	struct dev_context *devc = sdi->priv;
+	struct sr_usb_dev_inst *usb = sdi->conn;
+	// int ret = slogic_usb_control_write(sdi, CMD_STOP, 0x0000, 0x0000, NULL, 0, 500);
+	clear_ep(devc->model->ep_in, usb->devhdl);
+	return 0;
+}
+/* Slogic Lite 8 end */
+
+
+
+/* Slogic Basic 16 start */
+#define SLOGIC_BASIC_16_CONTROL_IN_REQ_REG_READ 	0x00
+#define SLOGIC_BASIC_16_CONTROL_OUT_REQ_REG_WRITE 	0x01
+
+static int slogic_basic_16_remote_run(const struct sr_dev_inst *sdi) {
+	const uint8_t cmd_run[] = {0x01, 0x00, 0x00, 0x00};
+	return slogic_usb_control_write(sdi, SLOGIC_BASIC_16_CONTROL_OUT_REQ_REG_WRITE, 0x0004, 0x0000, ARRAY_AND_SIZE(cmd_run), 500);
+}
+
+static int slogic_basic_16_remote_stop(const struct sr_dev_inst *sdi) {
+	const uint8_t cmd_rst[] = {0x02, 0x00, 0x00, 0x00};
+	return slogic_usb_control_write(sdi, SLOGIC_BASIC_16_CONTROL_OUT_REQ_REG_WRITE, 0x0004, 0x0000, ARRAY_AND_SIZE(cmd_rst), 500);
+}
+/* Slogic Basic 16 end */
+
+static int slogic_usb_control_write(const struct sr_dev_inst *sdi, uint8_t request, uint16_t value, uint16_t index, uint8_t *data, size_t len, int timeout)
+{
+	int ret;
+	struct dev_context *devc;
+	struct sr_usb_dev_inst *usb;
+
+	devc = sdi->priv;
+	usb  = sdi->conn;
+
+	sr_spew("%s req:%u value:%u index:%u %p:%u in %dms.", __func__, request, value, index, data, len, timeout);
+	if (!data && len) {
+		sr_warn("%s Nothing to write although len(%u)>0!", __func__, len);
+		len = 0;
+	}
+
+	if ((ret = libusb_control_transfer(
+		usb->devhdl, LIBUSB_REQUEST_TYPE_VENDOR | LIBUSB_ENDPOINT_OUT,
+		request,
+		value, index,
+		(unsigned char *)data, len,
+		timeout
+	)) < 0) {
+		sr_err("%s failed(libusb: %s)!", __func__, libusb_error_name(ret));
+		return SR_ERR_NA;
+	}
+	return ret;
+}
+
+
+static int slogic_usb_control_read(const struct sr_dev_inst *sdi, uint8_t request, uint16_t value, uint16_t index, uint8_t *data, size_t len, int timeout)
+{
+	int ret;
+	struct dev_context *devc;
+	struct sr_usb_dev_inst *usb;
+
+	devc = sdi->priv;
+	usb  = sdi->conn;
+
+	sr_spew("%s req:%u value:%u index:%u %p:%u in %dms.", __func__, request, value, index, data, len, timeout);
+	if (!data && len) {
+		sr_err("%s Can't read to NULL while len(%u)>0!", __func__, len);
+		return SR_ERR_ARG;
+	}
+
+	if ((ret = libusb_control_transfer(
+		usb->devhdl, LIBUSB_REQUEST_TYPE_VENDOR | LIBUSB_ENDPOINT_IN,
+		request,
+		value, index,
+		(unsigned char *)data, len,
+		timeout
+	)) < 0) {
+		sr_err("%s failed(libusb: %s)!", __func__, libusb_error_name(ret));
+		return SR_ERR_NA;
+	}
+	return ret;
+}
