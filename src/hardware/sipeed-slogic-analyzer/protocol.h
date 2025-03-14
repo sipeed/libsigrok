@@ -28,9 +28,8 @@
 
 #define LOG_PREFIX "sipeed-slogic-analyzer"
 
-#define EP_IN 0x02
-#define SIZE_MAX_EP_HS 512
 #define NUM_MAX_TRANSFERS 64
+#define TRANSFERS_DURATION_TOLERANCE 0.05f
 
 struct slogic_model {
 	char *name;
@@ -68,6 +67,11 @@ struct dev_context {
 		size_t num_transfers_completed;
 		size_t num_transfers_used;
 		struct libusb_transfer *transfers[NUM_MAX_TRANSFERS];
+
+		uint64_t transfers_reached_nbytes; /* real received bytes in all */
+		uint64_t transfers_reached_nbytes_latest; /* real received bytes this transfer */
+		int64_t transfers_reached_time_start;
+		int64_t transfers_reached_time_latest;
 	}; // usb
 
 	int acq_aborted;

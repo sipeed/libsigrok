@@ -50,21 +50,38 @@ static void LIBUSB_CALL receive_transfer(struct libusb_transfer *transfer) {
 	devc = sdi->priv;
 	usb  = sdi->conn;
 
-	sr_spew("[%p]usb status: %d", transfer, transfer->status);
+	int64_t transfers_reached_time_now = g_get_monotonic_time();
+	int64_t transfers_reached_duration = transfers_reached_time_now - devc->transfers_reached_time_latest;
+
+	if (devc->acq_aborted == 1)
+		return;
+
+	sr_spew("Transfer[%d] status: %d(%s)", std_u64_idx(g_variant_new_uint64((uint64_t)transfer), (uint64_t*)devc->transfers, devc->num_transfers_used),
+		transfer->status, libusb_error_name(transfer->status));
 	switch (transfer->status) {
 		case LIBUSB_TRANSFER_COMPLETED: 
 		case LIBUSB_TRANSFER_TIMED_OUT: { /* may have received some data */
+			devc->transfers_reached_nbytes_latest = transfer->actual_length;
+			devc->transfers_reached_nbytes += devc->transfers_reached_nbytes_latest;
 			if (transfer->actual_length > devc->samples_need_nbytes - devc->samples_got_nbytes)
 				transfer->actual_length = devc->samples_need_nbytes - devc->samples_got_nbytes;
 			devc->samples_got_nbytes += transfer->actual_length;
-			sr_dbg("[%u] got: %u/%u (%.2f%)", devc->num_transfers_completed, devc->samples_got_nbytes, devc->samples_need_nbytes, 100.f * devc->samples_got_nbytes / devc->samples_need_nbytes);
+			sr_dbg("[%u] Got(%.2f%): %u/%u => speed: %.2fMBps, %.2fMBps(avg) => +%.3f=%.3fms.",
+				devc->num_transfers_completed,
+				100.f * devc->samples_got_nbytes / devc->samples_need_nbytes, devc->samples_got_nbytes, devc->samples_need_nbytes,
+				(double)devc->transfers_reached_nbytes_latest / transfers_reached_duration,
+				(double)devc->transfers_reached_nbytes / (transfers_reached_time_now - devc->transfers_reached_time_start),
+				(double)transfers_reached_duration / SR_KHZ(1),
+				(double)(transfers_reached_time_now - devc->transfers_reached_time_start) / SR_KHZ(1)
+			);
+			devc->transfers_reached_time_latest = transfers_reached_time_now;
 
 			if (transfer->actual_length == 0) {
 				devc->num_transfers_used -= 1;
 				break;
 			}
 
-			{
+			if (1) {
 				uint8_t * d = transfer->buffer;
 				size_t len = transfer->actual_length;
 				// sr_dbg("HEAD: %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x",
@@ -89,20 +106,22 @@ static void LIBUSB_CALL receive_transfer(struct libusb_transfer *transfer) {
 			}
 
 			if (devc->samples_got_nbytes < devc->samples_need_nbytes) {
-				// transfer->length = bytes_to_transfer;
 				transfer->actual_length = 0;
+				transfer->timeout = (TRANSFERS_DURATION_TOLERANCE + 1) * devc->per_transfer_duration * (devc->num_transfers_used + 1);
 				ret = libusb_submit_transfer(transfer);
 				if (ret) {
 					sr_warn("Failed to submit transfer: %s", libusb_error_name(ret));
 					devc->num_transfers_used -= 1;
 				} else {
-					sr_dbg("submit transfer: %p", transfer);
+					sr_spew("Resubmit transfer: %p", transfer);
 				}
 			} else {
-				devc->num_transfers_used -= 1;
+				devc->num_transfers_used = 0;
 			}
 		} break;
 
+		case LIBUSB_TRANSFER_OVERFLOW:
+		case LIBUSB_TRANSFER_STALL:
 		case LIBUSB_TRANSFER_NO_DEVICE: {
 			devc->num_transfers_used = 0;
 		} break;
@@ -112,15 +131,19 @@ static void LIBUSB_CALL receive_transfer(struct libusb_transfer *transfer) {
 		} break;
 	}
 
-	devc->num_transfers_completed += 1;
+	if (devc->num_transfers_completed && (double)transfers_reached_duration / SR_KHZ(1) > (TRANSFERS_DURATION_TOLERANCE + 1) * devc->per_transfer_duration) {
+		sr_err("Timeout %.3fms!!! Reach duration limit: %.3f(%u+%.1f%) except first one.",
+			(double)transfers_reached_duration / SR_KHZ(1),
+			(TRANSFERS_DURATION_TOLERANCE + 1) * devc->per_transfer_duration, devc->per_transfer_duration, TRANSFERS_DURATION_TOLERANCE * 100
+		);
+		devc->num_transfers_used = 0;
+	}
 
 	if (devc->num_transfers_used == 0) {
-		sr_dbg("free all transfers");
-
-		sr_dbg("Bulk in %u/%u bytes", devc->samples_got_nbytes, devc->samples_need_nbytes);
-		
-		sr_dev_acquisition_stop(sdi);
+		sipeed_slogic_acquisition_stop(sdi);
 	}
+
+	devc->num_transfers_completed += 1;
 };
 
 static int handle_events(int fd, int revents, void *cb_data)
@@ -138,18 +161,22 @@ static int handle_events(int fd, int revents, void *cb_data)
 	di = sdi->driver;
 	drvc = di->context;
 
-	sr_spew("handle_events enter");
+	//sr_spew("handle_events enter");
 
 	if (devc->acq_aborted) {
 		for (size_t i = 0; i < NUM_MAX_TRANSFERS; ++i) {
 			struct libusb_transfer *transfer = devc->transfers[i];
 			if (transfer) {
 				libusb_cancel_transfer(transfer);
+				libusb_handle_events_timeout(drvc->sr_ctx->libusb_ctx, &(struct timeval){0, 0});
 				g_free(transfer->buffer);
 				libusb_free_transfer(transfer);
 			}
 			devc->transfers[i] = NULL;
 		}
+
+		sr_dbg("Freed all transfers.");
+		sr_info("Bulk in %u/%u bytes with %u transfers.", devc->samples_got_nbytes, devc->samples_need_nbytes, devc->num_transfers_completed);
 
 		sr_session_source_remove(sdi->session, -1 * (size_t)drvc->sr_ctx->libusb_ctx);
 		std_session_send_df_end(sdi);
@@ -183,7 +210,7 @@ SR_PRIV int sipeed_slogic_acquisition_start(const struct sr_dev_inst *sdi)
 		sr_err("Unhandled `CMD_RST`");
 		return ret;
 	}
-	// clear_ep(EP_IN, usb->devhdl);
+	// clear_ep(devc->model->ep_in, usb->devhdl);
 
 	devc->samples_got_nbytes = 0;
 	devc->samples_need_nbytes = devc->cur_limit_samples * devc->cur_samplechannel / 8;
@@ -196,7 +223,6 @@ SR_PRIV int sipeed_slogic_acquisition_start(const struct sr_dev_inst *sdi)
 
 	devc->per_transfer_duration = 500;
 	devc->per_transfer_nbytes = devc->cur_samplerate / SR_KHZ(1) * devc->cur_samplechannel / 8 * devc->per_transfer_duration /* ms */;
-	devc->per_transfer_nbytes = (devc->per_transfer_nbytes + 1023) & ~1023;
 
 	do {
 		struct libusb_transfer *transfer = libusb_alloc_transfer(0);
@@ -205,7 +231,7 @@ SR_PRIV int sipeed_slogic_acquisition_start(const struct sr_dev_inst *sdi)
 			return SR_ERR_IO;
 		}
 		do {
-			devc->per_transfer_nbytes = (devc->per_transfer_nbytes + 1023) & ~1023;
+			devc->per_transfer_nbytes = (devc->per_transfer_nbytes + (2*16*1024-1)) & ~(2*16*1024-1);
 			devc->per_transfer_duration = devc->per_transfer_nbytes / (devc->cur_samplerate / SR_KHZ(1) * devc->cur_samplechannel / 8);
 			sr_dbg("Plan to receive %u bytes per %ums...", devc->per_transfer_nbytes, devc->per_transfer_duration);
 			
@@ -218,7 +244,7 @@ SR_PRIV int sipeed_slogic_acquisition_start(const struct sr_dev_inst *sdi)
 
 			libusb_fill_bulk_transfer(transfer, usb->devhdl, devc->model->ep_in,
 										dev_buf, devc->per_transfer_nbytes, NULL,
-										NULL, devc->per_transfer_duration);
+										NULL, (TRANSFERS_DURATION_TOLERANCE + 1) * devc->per_transfer_duration);
 
 			ret = libusb_submit_transfer(transfer);
 			libusb_handle_events_timeout(drvc->sr_ctx->libusb_ctx, &(struct timeval){0, 0});
@@ -236,6 +262,9 @@ SR_PRIV int sipeed_slogic_acquisition_start(const struct sr_dev_inst *sdi)
 				ret = libusb_cancel_transfer(transfer);
 				libusb_handle_events_timeout(drvc->sr_ctx->libusb_ctx, &(struct timeval){0, 0});
 				g_free(transfer->buffer);
+
+				devc->per_transfer_nbytes >>= 1;
+				devc->per_transfer_duration = devc->per_transfer_nbytes / (devc->cur_samplerate / SR_KHZ(1) * devc->cur_samplechannel / 8);
 				break;
 			}
 		} while (devc->per_transfer_nbytes > 128*1024); // 128kiB > 500ms * 1MHZ * 2ch
@@ -248,10 +277,11 @@ SR_PRIV int sipeed_slogic_acquisition_start(const struct sr_dev_inst *sdi)
 	devc->num_transfers_used = 0;
 	devc->num_transfers_completed = 0;
 	memset(devc->transfers, 0, sizeof(devc->transfers));
+	devc->transfers_reached_nbytes = 0;
 
 	sr_session_source_add(sdi->session, -1 * (size_t)drvc->sr_ctx->libusb_ctx, 0, devc->per_transfer_duration / 2, handle_events, (void *)sdi);
 
-	while (devc->num_transfers_used < NUM_MAX_TRANSFERS)
+	for (size_t reveiving_nbytes = 0; devc->num_transfers_used < NUM_MAX_TRANSFERS && reveiving_nbytes < devc->samples_need_nbytes; reveiving_nbytes += devc->per_transfer_nbytes)
 	{
 		uint8_t *dev_buf = g_malloc(devc->per_transfer_nbytes);
 		if (!dev_buf) {
@@ -266,9 +296,9 @@ SR_PRIV int sipeed_slogic_acquisition_start(const struct sr_dev_inst *sdi)
 			break;
 		}
 
-		libusb_fill_bulk_transfer(transfer, usb->devhdl, EP_IN | LIBUSB_ENDPOINT_IN,
+		libusb_fill_bulk_transfer(transfer, usb->devhdl, devc->model->ep_in,
 									dev_buf, devc->per_transfer_nbytes, receive_transfer,
-									sdi, devc->per_transfer_duration);
+									sdi, (TRANSFERS_DURATION_TOLERANCE + 1) * devc->per_transfer_duration * (devc->num_transfers_used + 1));
 		transfer->actual_length = 0;
 
 		ret = libusb_submit_transfer(transfer);
@@ -285,6 +315,9 @@ SR_PRIV int sipeed_slogic_acquisition_start(const struct sr_dev_inst *sdi)
 
 	std_session_send_df_header(sdi);
 	std_session_send_df_frame_begin(sdi);
+
+	devc->transfers_reached_time_start = g_get_monotonic_time();
+	devc->transfers_reached_time_latest = devc->transfers_reached_time_start;
 
 	uint8_t cmd_run[] = {0x01, 0x00, 0x00, 0x00};
 	ret = slogic_basic_16_u3_reg_write(sdi, 0x0004, ARRAY_AND_SIZE(cmd_run));
