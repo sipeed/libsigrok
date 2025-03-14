@@ -20,23 +20,6 @@
 #include <config.h>
 #include "protocol.h"
 
-static int handle_events(int fd, int revents, void *cb_data);
-
-static void submit_data(void *data, size_t len, const struct sr_dev_inst *sdi) {
-	struct sr_datafeed_logic logic = {
-		.length = len,
-		.unitsize = (((struct dev_context *)(sdi->priv))->cur_samplechannel + 7)/8,
-		.data = data,
-	};
-
-	struct sr_datafeed_packet packet = {
-		.type = SR_DF_LOGIC,
-		.payload = &logic
-	};
-
-	sr_session_send(sdi, &packet);
-}
-
 static void LIBUSB_CALL receive_transfer(struct libusb_transfer *transfer) {
 
 	int ret;
@@ -87,23 +70,7 @@ static void LIBUSB_CALL receive_transfer(struct libusb_transfer *transfer) {
 				size_t len = transfer->actual_length;
 				// sr_dbg("HEAD: %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x",
 				// 	d[0], d[1], d[2], d[3], d[4], d[5], d[6], d[7], d[8], d[9], d[10], d[11], d[12], d[13], d[14], d[15]);
-
-				uint8_t *ptr = g_malloc(len);
-
-				for(size_t i=0; i<len; i+=16) {
-					for(size_t j=0; j< 8; j++) {
-						#define B(n) (((d[i+(n)] >> 7-j) & 0x1) << ((n)%8))
-						ptr[i+j*2+0] =
-							B(0)|B(1)|B(2)|B(3)|B(4)|B(5)|B(6)|B(7);
-						ptr[i+j*2+1] =
-							B(8)|B(9)|B(10)|B(11)|B(12)|B(13)|B(14)|B(15);
-						#undef B
-					}
-				}
-
-				submit_data(ptr, len, sdi);
-
-				g_free(ptr);
+				devc->model->submit_raw_data(d, len, sdi);
 			}
 
 			if (devc->samples_got_nbytes < devc->samples_need_nbytes) {

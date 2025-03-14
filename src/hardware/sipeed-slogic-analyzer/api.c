@@ -39,8 +39,10 @@ static const uint32_t devopts[] = {
 
 static int slogic_lite_8_remote_run(const struct sr_dev_inst *sdi);
 static int slogic_lite_8_remote_stop(const struct sr_dev_inst *sdi);
+static void slogic_lite_8_submit_raw_data(void *data, size_t len, const struct sr_dev_inst *sdi);
 static int slogic_basic_16_remote_run(const struct sr_dev_inst *sdi);
 static int slogic_basic_16_remote_stop(const struct sr_dev_inst *sdi);
+static void slogic_basic_16_submit_raw_data(void *data, size_t len, const struct sr_dev_inst *sdi);
 
 static const struct slogic_model support_models[] = {
 	{
@@ -54,6 +56,7 @@ static const struct slogic_model support_models[] = {
 			.remote_run = slogic_lite_8_remote_run,
 			.remote_stop = slogic_lite_8_remote_stop,
 		},
+		.submit_raw_data = slogic_lite_8_submit_raw_data,
 	},
 	{
 		.name = "Slogic Basic 16 U3",
@@ -66,6 +69,7 @@ static const struct slogic_model support_models[] = {
 			.remote_run = slogic_basic_16_remote_run,
 			.remote_stop = slogic_basic_16_remote_stop,
 		},
+		.submit_raw_data = slogic_basic_16_submit_raw_data,
 	},
 	{
 		.name = NULL,
@@ -471,6 +475,41 @@ static int slogic_lite_8_remote_stop(const struct sr_dev_inst *sdi) {
 	clear_ep(sdi);
 	return ret;
 }
+
+static void slogic_lite_8_submit_raw_data(void *data, size_t len, const struct sr_dev_inst *sdi) {
+	struct dev_context *devc = sdi->priv;
+
+	size_t length = len * (8/devc->cur_samplechannel);
+	uint8_t *ptr = g_malloc(length);
+
+	for(size_t i=0; i<len; i+=devc->cur_samplechannel) {
+		for(size_t j=0; j<8; j++) {
+			ptr[i*(8/devc->cur_samplechannel)+j] = (((uint8_t *)data)[i+j/(8/devc->cur_samplechannel)] >> (j%(8/devc->cur_samplechannel) * devc->cur_samplechannel)) & ((1<<devc->cur_samplechannel)-1);
+			// switch (devc->cur_samplechannel) {
+			// case 8:
+			// 	ptr[i*1+j] = (((uint8_t *)data)[i+j/1] >> (j%1 * 8)) & 0xff;
+			// break;
+			// case 4:
+			// 	ptr[i*2+j] = (((uint8_t *)data)[i+j/2] >> (j%2 * 4)) & 0xf;
+			// break;
+			// case 2:
+			// 	ptr[i*4+j] = (((uint8_t *)data)[i+j/4] >> (j%4 * 2)) & 0x3;
+			// break;
+			// }
+		}
+	}
+
+	sr_session_send(sdi, &(struct sr_datafeed_packet) {
+		.type = SR_DF_LOGIC,
+		.payload = &(struct sr_datafeed_logic) {
+			.length = length,
+			.unitsize = 1,
+			.data = ptr,
+		}
+	});
+
+	g_free(ptr);
+}
 /* Slogic Lite 8 end */
 
 
@@ -487,6 +526,51 @@ static int slogic_basic_16_remote_run(const struct sr_dev_inst *sdi) {
 static int slogic_basic_16_remote_stop(const struct sr_dev_inst *sdi) {
 	const uint8_t cmd_rst[] = {0x02, 0x00, 0x00, 0x00};
 	return slogic_usb_control_write(sdi, SLOGIC_BASIC_16_CONTROL_OUT_REQ_REG_WRITE, 0x0004, 0x0000, ARRAY_AND_SIZE(cmd_rst), 500);
+}
+
+static void slogic_basic_16_submit_raw_data(void *data, size_t len, const struct sr_dev_inst *sdi) {
+	struct dev_context *devc = sdi->priv;
+
+	size_t length = len * ((devc->cur_samplechannel>=8)?:(8/devc->cur_samplechannel));
+	uint8_t *ptr = g_malloc(length);
+
+	for(size_t i=0; i<len; i+=devc->cur_samplechannel) {
+		for(size_t j=0; j<8; j++) {
+			#define B(n) (((((uint8_t *)data)[i+(n)] >> 7-j) & 0x1) << ((n)%8))
+			switch (devc->cur_samplechannel) {
+			case 16:
+				ptr[i+j*2+0] =
+					B(0)|B(1)|B(2)|B(3)|B(4)|B(5)|B(6)|B(7);
+				ptr[i+j*2+1] =
+					B(8)|B(9)|B(10)|B(11)|B(12)|B(13)|B(14)|B(15);
+			break;
+			case 8:
+				ptr[i+j] =
+					B(0)|B(1)|B(2)|B(3)|B(4)|B(5)|B(6)|B(7);
+			break;
+			case 4:
+				ptr[i*2+j] =
+					B(0)|B(1)|B(2)|B(3);
+			break;
+			case 2:
+				ptr[i*4+j] =
+					B(0)|B(1);
+			break;
+			}
+			#undef B
+		}
+	}
+
+	sr_session_send(sdi, &(struct sr_datafeed_packet) {
+		.type = SR_DF_LOGIC,
+		.payload = &(struct sr_datafeed_logic) {
+			.length = length,
+			.unitsize = (devc->cur_samplechannel + 7)/8,
+			.data = ptr,
+		}
+	});
+
+	g_free(ptr);
 }
 /* Slogic Basic 16 end */
 

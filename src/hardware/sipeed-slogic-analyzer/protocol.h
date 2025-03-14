@@ -43,6 +43,7 @@ struct slogic_model {
 		int (*remote_run)(const struct sr_dev_inst *sdi);
 		int (*remote_stop)(const struct sr_dev_inst *sdi);
 	} operation;
+	void (*submit_raw_data)(void *data, size_t len, const struct sr_dev_inst *sdi);
 };
 
 struct dev_context {
