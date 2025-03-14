@@ -39,7 +39,7 @@ struct slogic_model {
 	uint64_t max_samplerate; // limit by hardware
 	uint64_t max_samplechannel; // limit by hardware
 	uint64_t max_bandwidth; // limit by hardware
-	struct slogic_model_operation {
+	struct {
 		int (*remote_run)(const struct sr_dev_inst *sdi);
 		int (*remote_stop)(const struct sr_dev_inst *sdi);
 	} operation;

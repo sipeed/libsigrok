@@ -315,6 +315,11 @@ SR_PRIV int sipeed_slogic_acquisition_start(const struct sr_dev_inst *sdi)
 	devc->transfers_reached_time_start = g_get_monotonic_time();
 	devc->transfers_reached_time_latest = devc->transfers_reached_time_start;
 
+	if (!devc->num_transfers_used) {
+		sipeed_slogic_acquisition_stop(sdi);
+		return SR_OK;
+	}
+
 	if ((ret = devc->model->operation.remote_run(sdi)) < 0) {
 		sr_err("Unhandled `CMD_RUN`");
 		return ret;
