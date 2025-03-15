@@ -75,7 +75,7 @@ static void LIBUSB_CALL receive_transfer(struct libusb_transfer *transfer) {
 
 			if (devc->samples_got_nbytes < devc->samples_need_nbytes) {
 				transfer->actual_length = 0;
-				transfer->timeout = (TRANSFERS_DURATION_TOLERANCE + 1) * devc->per_transfer_duration * (devc->num_transfers_used + 1);
+				transfer->timeout = (TRANSFERS_DURATION_TOLERANCE + 1) * devc->per_transfer_duration * (devc->num_transfers_used + 2);
 				ret = libusb_submit_transfer(transfer);
 				if (ret) {
 					sr_dbg("Failed to submit transfer: %s", libusb_error_name(ret));
@@ -261,7 +261,7 @@ SR_PRIV int sipeed_slogic_acquisition_start(const struct sr_dev_inst *sdi)
 
 		libusb_fill_bulk_transfer(transfer, usb->devhdl, devc->model->ep_in,
 									dev_buf, devc->per_transfer_nbytes, receive_transfer,
-									sdi, (TRANSFERS_DURATION_TOLERANCE + 1) * devc->per_transfer_duration * (devc->num_transfers_used + 1));
+									sdi, (TRANSFERS_DURATION_TOLERANCE + 1) * devc->per_transfer_duration * (devc->num_transfers_used + 2));
 		transfer->actual_length = 0;
 
 		ret = libusb_submit_transfer(transfer);
