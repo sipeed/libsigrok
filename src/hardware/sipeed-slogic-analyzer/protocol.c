@@ -65,7 +65,7 @@ static void LIBUSB_CALL receive_transfer(struct libusb_transfer *transfer) {
 			}
 
 			/* TODO: move out submit to ensure continuous transfers */
-			if (1) {
+			if (devc->cur_pattern_mode_idx != PATTERN_MODE_TEST_MAX_SPEED) {
 				uint8_t * d = transfer->buffer;
 				size_t len = transfer->actual_length;
 				// sr_dbg("HEAD: %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x",
@@ -242,7 +242,7 @@ SR_PRIV int sipeed_slogic_acquisition_start(const struct sr_dev_inst *sdi)
 	memset(devc->transfers, 0, sizeof(devc->transfers));
 	devc->transfers_reached_nbytes = 0;
 
-	sr_session_source_add(sdi->session, -1 * (size_t)drvc->sr_ctx->libusb_ctx, 0, devc->per_transfer_duration / 2, handle_events, (void *)sdi);
+	sr_session_source_add(sdi->session, -1 * (size_t)drvc->sr_ctx->libusb_ctx, 0, (devc->per_transfer_duration / 2)?:1, handle_events, (void *)sdi);
 
 	for (size_t reveiving_nbytes = 0; devc->num_transfers_used < NUM_MAX_TRANSFERS && reveiving_nbytes < devc->samples_need_nbytes; reveiving_nbytes += devc->per_transfer_nbytes)
 	{

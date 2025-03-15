@@ -33,6 +33,7 @@ static const uint32_t devopts[] = {
 	SR_CONF_LIMIT_SAMPLES | SR_CONF_GET | SR_CONF_SET,
 	SR_CONF_SAMPLERATE    | SR_CONF_GET | SR_CONF_SET | SR_CONF_LIST,
 	SR_CONF_BUFFERSIZE | SR_CONF_GET | SR_CONF_SET | SR_CONF_LIST,
+	SR_CONF_PATTERN_MODE | SR_CONF_GET | SR_CONF_SET | SR_CONF_LIST,
 	SR_CONF_TRIGGER_MATCH | SR_CONF_GET | SR_CONF_LIST,
 };
 
@@ -111,6 +112,13 @@ static const uint64_t samplerates[] = {
 
 static const uint64_t buffersizes[] = {
 	2, 4, 8, 16
+};
+
+static const char *patterns[] = {
+#define GEN_PATTERN(P) [P] = #P
+	GEN_PATTERN(PATTERN_MODE_NOMAL),
+	GEN_PATTERN(PATTERN_MODE_TEST_MAX_SPEED),
+#undef GEN_PATTERN
 };
 
 static const int32_t trigger_matches[] = {
@@ -209,6 +217,7 @@ static GSList *scan(struct sr_dev_driver *di, GSList *options)
 
 				devc->cur_samplechannel = devc->limit_samplechannel;
 				devc->cur_samplerate = devc->limit_samplerate;
+				devc->cur_pattern_mode_idx = PATTERN_MODE_NOMAL;
 
 				devc->digital_group = sr_channel_group_new(sdi, "LA", NULL);
 				for (i = 0; i < devc->model->max_samplechannel; i++) {
@@ -319,6 +328,9 @@ static int config_get(uint32_t key, GVariant **data,
 	case SR_CONF_BUFFERSIZE:
 		*data = g_variant_new_uint64(devc->cur_samplechannel);
 		break;
+	case SR_CONF_PATTERN_MODE:
+		*data = g_variant_new_string(patterns[devc->cur_pattern_mode_idx]);
+		break;
 	case SR_CONF_LIMIT_SAMPLES:
 		*data = g_variant_new_uint64(devc->cur_limit_samples);
 		break;
@@ -376,6 +388,11 @@ static int config_set(uint32_t key, GVariant *data,
 			}
 		}
 		break;
+	case SR_CONF_PATTERN_MODE:
+		devc->cur_pattern_mode_idx = std_str_idx(data, ARRAY_AND_SIZE(patterns));
+		if (devc->cur_pattern_mode_idx < 0)
+			devc->cur_pattern_mode_idx = 0;
+		break;
 	case SR_CONF_LIMIT_SAMPLES:
 		devc->cur_limit_samples = g_variant_get_uint64(data);
 		break;
@@ -407,6 +424,9 @@ static int config_list(uint32_t key, GVariant **data,
 		break;
 	case SR_CONF_BUFFERSIZE:
 		*data = std_gvar_array_u64(buffersizes, 1+std_u64_idx(g_variant_new_uint64(devc->limit_samplechannel), ARRAY_AND_SIZE(buffersizes)));
+		break;
+	case SR_CONF_PATTERN_MODE:
+		*data = g_variant_new_strv(ARRAY_AND_SIZE(patterns));
 		break;
 	case SR_CONF_TRIGGER_MATCH:
 		*data = std_gvar_array_i32(ARRAY_AND_SIZE(trigger_matches));

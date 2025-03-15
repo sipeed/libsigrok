@@ -32,6 +32,11 @@
 #define NUM_MAX_TRANSFERS 64
 #define TRANSFERS_DURATION_TOLERANCE 0.05f
 
+enum {
+	PATTERN_MODE_NOMAL,
+	PATTERN_MODE_TEST_MAX_SPEED,
+};
+
 struct slogic_model {
 	char *name;
 	uint16_t pid;
@@ -60,6 +65,7 @@ struct dev_context {
 		uint64_t cur_limit_samples;
 		uint64_t cur_samplerate;
 		uint64_t cur_samplechannel;
+		int64_t cur_pattern_mode_idx;
 	}; // configuration
 
 	struct {
