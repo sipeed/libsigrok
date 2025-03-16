@@ -39,7 +39,7 @@ static void LIBUSB_CALL receive_transfer(struct libusb_transfer *transfer) {
 	if (devc->acq_aborted == 1)
 		return;
 
-	sr_spew("Transfer[%d] status: %d(%s)", std_u64_idx(g_variant_new_uint64((uint64_t)transfer), (uint64_t*)devc->transfers, devc->num_transfers_used),
+	sr_spew("Transfer[%d] status: %d(%s)", std_u64_idx(g_variant_new_uint64((uint64_t)transfer), (uint64_t*)devc->transfers, NUM_MAX_TRANSFERS),
 		transfer->status, libusb_error_name(transfer->status));
 	switch (transfer->status) {
 		case LIBUSB_TRANSFER_COMPLETED: 
