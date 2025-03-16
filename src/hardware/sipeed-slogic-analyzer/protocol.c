@@ -49,7 +49,7 @@ static void LIBUSB_CALL receive_transfer(struct libusb_transfer *transfer) {
 			if (transfer->actual_length > devc->samples_need_nbytes - devc->samples_got_nbytes)
 				transfer->actual_length = devc->samples_need_nbytes - devc->samples_got_nbytes;
 			devc->samples_got_nbytes += transfer->actual_length;
-			sr_dbg("[%u] Got(%.2f%): %u/%u => speed: %.2fMBps, %.2fMBps(avg) => +%.3f=%.3fms.",
+			sr_dbg("[%u] Got(%.2f%%): %u/%u => speed: %.2fMBps, %.2fMBps(avg) => +%.3f=%.3fms.",
 				devc->num_transfers_completed,
 				100.f * devc->samples_got_nbytes / devc->samples_need_nbytes, devc->samples_got_nbytes, devc->samples_need_nbytes,
 				(double)devc->transfers_reached_nbytes_latest / transfers_reached_duration,
@@ -73,18 +73,17 @@ static void LIBUSB_CALL receive_transfer(struct libusb_transfer *transfer) {
 				devc->model->submit_raw_data(d, len, sdi);
 			}
 
-			if (devc->samples_got_nbytes < devc->samples_need_nbytes) {
+			devc->num_transfers_used -= 1;
+			if (devc->samples_got_nbytes + devc->num_transfers_used * devc->per_transfer_nbytes < devc->samples_need_nbytes) {
 				transfer->actual_length = 0;
 				transfer->timeout = (TRANSFERS_DURATION_TOLERANCE + 1) * devc->per_transfer_duration * (devc->num_transfers_used + 2);
 				ret = libusb_submit_transfer(transfer);
 				if (ret) {
 					sr_dbg("Failed to submit transfer: %s", libusb_error_name(ret));
-					devc->num_transfers_used -= 1;
 				} else {
 					sr_spew("Resubmit transfer: %p", transfer);
+					devc->num_transfers_used += 1;
 				}
-			} else {
-				devc->num_transfers_used = 0;
 			}
 		} break;
 
@@ -100,7 +99,7 @@ static void LIBUSB_CALL receive_transfer(struct libusb_transfer *transfer) {
 	}
 
 	if (devc->num_transfers_completed && (double)transfers_reached_duration / SR_KHZ(1) > (TRANSFERS_DURATION_TOLERANCE + 1) * devc->per_transfer_duration) {
-		sr_err("Timeout %.3fms!!! Reach duration limit: %.3f(%u+%.1f%) except first one.",
+		sr_err("Timeout %.3fms!!! Reach duration limit: %.3f(%u+%.1f%%) except first one.",
 			(double)transfers_reached_duration / SR_KHZ(1),
 			(TRANSFERS_DURATION_TOLERANCE + 1) * devc->per_transfer_duration, devc->per_transfer_duration, TRANSFERS_DURATION_TOLERANCE * 100
 		);
@@ -136,7 +135,12 @@ static int handle_events(int fd, int revents, void *cb_data)
 			struct libusb_transfer *transfer = devc->transfers[i];
 			if (transfer) {
 				libusb_cancel_transfer(transfer);
-				libusb_handle_events_timeout(drvc->sr_ctx->libusb_ctx, &(struct timeval){0, 0});
+			}
+		}
+		for (size_t i = 0; i < NUM_MAX_TRANSFERS; ++i) {
+			libusb_handle_events_timeout_completed(drvc->sr_ctx->libusb_ctx, &(struct timeval){0, 0}, NULL);
+			struct libusb_transfer *transfer = devc->transfers[i];
+			if (transfer) {
 				g_free(transfer->buffer);
 				libusb_free_transfer(transfer);
 			}
@@ -150,7 +154,7 @@ static int handle_events(int fd, int revents, void *cb_data)
 		std_session_send_df_end(sdi);
 	}
 
-	libusb_handle_events_timeout_completed(drvc->sr_ctx->libusb_ctx, &(struct timeval){0, 0}, &devc->acq_aborted);
+	libusb_handle_events_timeout_completed(drvc->sr_ctx->libusb_ctx, &(struct timeval){0, 0}, NULL);
 
 	return TRUE;
 }
@@ -184,8 +188,8 @@ SR_PRIV int sipeed_slogic_acquisition_start(const struct sr_dev_inst *sdi)
 			1000 * devc->cur_limit_samples / devc->cur_samplerate
 	);
 
-	devc->per_transfer_duration = 500;
-	devc->per_transfer_nbytes = devc->cur_samplerate / SR_KHZ(1) * devc->cur_samplechannel / 8 * devc->per_transfer_duration /* ms */;
+	devc->per_transfer_duration = 125;
+	devc->per_transfer_nbytes = devc->per_transfer_duration * devc->cur_samplerate * devc->cur_samplechannel / 8 / SR_KHZ(1) /* ms */;
 
 	do {
 		struct libusb_transfer *transfer = libusb_alloc_transfer(0);
@@ -195,7 +199,7 @@ SR_PRIV int sipeed_slogic_acquisition_start(const struct sr_dev_inst *sdi)
 		}
 		do {
 			devc->per_transfer_nbytes = (devc->per_transfer_nbytes + (2*16*1024-1)) & ~(2*16*1024-1);
-			devc->per_transfer_duration = devc->per_transfer_nbytes / (devc->cur_samplerate / SR_KHZ(1) * devc->cur_samplechannel / 8);
+			devc->per_transfer_duration = devc->per_transfer_nbytes * SR_KHZ(1) * 8 / (devc->cur_samplerate * devc->cur_samplechannel);
 			sr_dbg("Plan to receive %u bytes per %ums...", devc->per_transfer_nbytes, devc->per_transfer_duration);
 			
 			uint8_t *dev_buf = g_malloc(devc->per_transfer_nbytes);
@@ -207,10 +211,9 @@ SR_PRIV int sipeed_slogic_acquisition_start(const struct sr_dev_inst *sdi)
 
 			libusb_fill_bulk_transfer(transfer, usb->devhdl, devc->model->ep_in,
 										dev_buf, devc->per_transfer_nbytes, NULL,
-										NULL, (TRANSFERS_DURATION_TOLERANCE + 1) * devc->per_transfer_duration);
+										NULL, 0);
 
 			ret = libusb_submit_transfer(transfer);
-			libusb_handle_events_timeout(drvc->sr_ctx->libusb_ctx, &(struct timeval){0, 0});
 			if (ret) {
 				g_free(transfer->buffer);
 				if (ret == LIBUSB_ERROR_NO_MEM) {
@@ -219,18 +222,22 @@ SR_PRIV int sipeed_slogic_acquisition_start(const struct sr_dev_inst *sdi)
 					continue;
 				} else {
 					sr_err("Failed to submit transfer: %s!", libusb_error_name(ret));
+					libusb_free_transfer(transfer);
 					return SR_ERR_IO;
 				}
 			} else {
 				ret = libusb_cancel_transfer(transfer);
-				libusb_handle_events_timeout(drvc->sr_ctx->libusb_ctx, &(struct timeval){0, 0});
+				if (ret) {
+                    sr_dbg("Failed to cancel transfer: %s!", libusb_error_name(ret));
+                }
+                libusb_handle_events_timeout_completed(drvc->sr_ctx->libusb_ctx, &(struct timeval){3, 0}, NULL);
 				g_free(transfer->buffer);
 
 				devc->per_transfer_nbytes >>= 1;
 				devc->per_transfer_duration = devc->per_transfer_nbytes / (devc->cur_samplerate / SR_KHZ(1) * devc->cur_samplechannel / 8);
 				break;
 			}
-		} while (devc->per_transfer_nbytes > 128*1024); // 128kiB > 500ms * 1MHZ * 2ch
+		} while (devc->per_transfer_nbytes > 32*1024); // 32kiB > 125ms * 1MHZ * 2ch
 		libusb_free_transfer(transfer);
 		sr_info("Nice plan! :) => %u bytes per %ums.", devc->per_transfer_nbytes, devc->per_transfer_duration);
 	} while (0);
@@ -244,7 +251,7 @@ SR_PRIV int sipeed_slogic_acquisition_start(const struct sr_dev_inst *sdi)
 
 	sr_session_source_add(sdi->session, -1 * (size_t)drvc->sr_ctx->libusb_ctx, 0, (devc->per_transfer_duration / 2)?:1, handle_events, (void *)sdi);
 
-	for (size_t reveiving_nbytes = 0; devc->num_transfers_used < NUM_MAX_TRANSFERS && reveiving_nbytes < devc->samples_need_nbytes; reveiving_nbytes += devc->per_transfer_nbytes)
+	while (devc->num_transfers_used < NUM_MAX_TRANSFERS && devc->samples_got_nbytes + devc->num_transfers_used * devc->per_transfer_nbytes < devc->samples_need_nbytes)
 	{
 		uint8_t *dev_buf = g_malloc(devc->per_transfer_nbytes);
 		if (!dev_buf) {
