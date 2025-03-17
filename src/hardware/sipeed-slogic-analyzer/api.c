@@ -541,14 +541,105 @@ static void slogic_lite_8_submit_raw_data(void *data, size_t len, const struct s
 #define SLOGIC_BASIC_16_CONTROL_IN_REQ_REG_READ 	0x00
 #define SLOGIC_BASIC_16_CONTROL_OUT_REQ_REG_WRITE 	0x01
 
+#define SLOGIC_BASIC_16_R32_CTRL 	0x0004
+#define SLOGIC_BASIC_16_R32_FLAG 	0x0008
+#define SLOGIC_BASIC_16_R32_AUX 	0x000c
+
 static int slogic_basic_16_remote_run(const struct sr_dev_inst *sdi) {
+	struct dev_context *devc = sdi->priv;
+	const uint8_t cmd_derst[] = {0x00, 0x00, 0x00, 0x00};
 	const uint8_t cmd_run[] = {0x01, 0x00, 0x00, 0x00};
-	return slogic_usb_control_write(sdi, SLOGIC_BASIC_16_CONTROL_OUT_REQ_REG_WRITE, 0x0004, 0x0000, ARRAY_AND_SIZE(cmd_run), 500);
+	uint8_t cmd_aux_channel[8] = {0x01, 0x00, 0x00, 0x00}; // configure channel
+	uint8_t cmd_aux_samplerate[12] = {0x02, 0x00, 0x00, 0x00}; // configure samplerate
+
+	slogic_usb_control_write(sdi, SLOGIC_BASIC_16_CONTROL_OUT_REQ_REG_WRITE, SLOGIC_BASIC_16_R32_CTRL, 0x0000, ARRAY_AND_SIZE(cmd_derst), 500);
+
+	{
+		uint8_t *cmd_aux = cmd_aux_channel;
+		slogic_usb_control_write(sdi, SLOGIC_BASIC_16_CONTROL_OUT_REQ_REG_WRITE, SLOGIC_BASIC_16_R32_AUX, 0x0000, cmd_aux, 4, 500);
+		do {
+			slogic_usb_control_read(sdi, SLOGIC_BASIC_16_CONTROL_IN_REQ_REG_READ, SLOGIC_BASIC_16_R32_AUX, 0x0000, cmd_aux, 4, 500);
+			sr_dbg("read aux channel.");
+		} while (!(cmd_aux[2] & 0x01));
+		sr_dbg("channel length: %u.", (*(uint16_t*)cmd_aux)>>8);
+		slogic_usb_control_read(sdi, SLOGIC_BASIC_16_CONTROL_IN_REQ_REG_READ, SLOGIC_BASIC_16_R32_AUX, 0x0000, cmd_aux, 4 + (*(uint16_t*)cmd_aux)>>8, 500);
+
+		// sr_dbg("aux: %u %u %u %u %08x.", cmd_aux[0], cmd_aux[1], cmd_aux[2], cmd_aux[3], *(uint32_t*)(cmd_aux+4));
+
+		*(uint32_t*)(cmd_aux+4) = (1 << devc->cur_samplechannel) - 1;
+
+		// sr_dbg("aux: %u %u %u %u %08x.", cmd_aux[0], cmd_aux[1], cmd_aux[2], cmd_aux[3], *(uint32_t*)(cmd_aux+4));
+		slogic_usb_control_write(sdi, SLOGIC_BASIC_16_CONTROL_OUT_REQ_REG_WRITE, SLOGIC_BASIC_16_R32_AUX, 0x0000, cmd_aux, 4 + (*(uint16_t*)cmd_aux)>>8, 500);
+
+		slogic_usb_control_read(sdi, SLOGIC_BASIC_16_CONTROL_IN_REQ_REG_READ, SLOGIC_BASIC_16_R32_AUX, 0x0000, cmd_aux, 4 + (*(uint16_t*)cmd_aux)>>8, 500);
+		sr_dbg("aux: %u %u %u %u %08x.", cmd_aux[0], cmd_aux[1], cmd_aux[2], cmd_aux[3], *(uint32_t*)(cmd_aux+4));
+
+		if ((1 << devc->cur_samplechannel) - 1 != *(uint32_t*)(cmd_aux+4)) {
+			sr_dbg("Failed to configure sample channel.");
+		} else {
+			sr_dbg("Succeed to configure sample channel.");
+		}
+	}
+
+
+	{
+		uint8_t *cmd_aux = cmd_aux_samplerate;
+		slogic_usb_control_write(sdi, SLOGIC_BASIC_16_CONTROL_OUT_REQ_REG_WRITE, SLOGIC_BASIC_16_R32_AUX, 0x0000, cmd_aux, 4, 500);
+		do {
+			slogic_usb_control_read(sdi, SLOGIC_BASIC_16_CONTROL_IN_REQ_REG_READ, SLOGIC_BASIC_16_R32_AUX, 0x0000, cmd_aux, 4, 500);
+			sr_dbg("read aux samplerate.");
+		} while (!(cmd_aux[2] & 0x01));
+		sr_dbg("samplerate length: %u.", (*(uint16_t*)cmd_aux)>>8);
+		slogic_usb_control_read(sdi, SLOGIC_BASIC_16_CONTROL_IN_REQ_REG_READ, SLOGIC_BASIC_16_R32_AUX, 0x0000, cmd_aux, 4 + (*(uint16_t*)cmd_aux)>>8, 500);
+
+		// sr_dbg("aux: %u %u %u %u %u.", cmd_aux[0], cmd_aux[1], cmd_aux[2], cmd_aux[3], *(uint64_t*)(cmd_aux+4));
+
+		*(uint64_t*)(cmd_aux+4) = devc->cur_samplerate;
+
+		// sr_dbg("aux: %u %u %u %u %u.", cmd_aux[0], cmd_aux[1], cmd_aux[2], cmd_aux[3], *(uint64_t*)(cmd_aux+4));
+		slogic_usb_control_write(sdi, SLOGIC_BASIC_16_CONTROL_OUT_REQ_REG_WRITE, SLOGIC_BASIC_16_R32_AUX, 0x0000, cmd_aux, 4 + (*(uint16_t*)cmd_aux)>>8, 500);
+
+		slogic_usb_control_read(sdi, SLOGIC_BASIC_16_CONTROL_IN_REQ_REG_READ, SLOGIC_BASIC_16_R32_AUX, 0x0000, cmd_aux, 4 + (*(uint16_t*)cmd_aux)>>8, 500);
+		sr_dbg("aux: %u %u %u %u %u.", cmd_aux[0], cmd_aux[1], cmd_aux[2], cmd_aux[3], *(uint64_t*)(cmd_aux+4));
+
+		if (devc->cur_samplerate != *(uint64_t*)(cmd_aux+4)) {
+			sr_dbg("Failed to configure samplerate.");
+		} else {
+			sr_dbg("Succeed to configure samplerate.");
+		}
+	}
+
+	return slogic_usb_control_write(sdi, SLOGIC_BASIC_16_CONTROL_OUT_REQ_REG_WRITE, SLOGIC_BASIC_16_R32_CTRL, 0x0000, ARRAY_AND_SIZE(cmd_run), 500);
 }
 
 static int slogic_basic_16_remote_stop(const struct sr_dev_inst *sdi) {
 	const uint8_t cmd_rst[] = {0x02, 0x00, 0x00, 0x00};
-	return slogic_usb_control_write(sdi, SLOGIC_BASIC_16_CONTROL_OUT_REQ_REG_WRITE, 0x0004, 0x0000, ARRAY_AND_SIZE(cmd_rst), 500);
+	return slogic_usb_control_write(sdi, SLOGIC_BASIC_16_CONTROL_OUT_REQ_REG_WRITE, SLOGIC_BASIC_16_R32_CTRL, 0x0000, ARRAY_AND_SIZE(cmd_rst), 500);
+}
+// reverse bits（MSB <-> LSB）
+static uint8_t reverse_bits(uint8_t x) {
+    x = ((x & 0x55) << 1) | ((x >> 1) & 0x55); // 交换相邻的1位
+    x = ((x & 0x33) << 2) | ((x >> 2) & 0x33); // 交换相邻的2位
+    x = ((x & 0x0F) << 4) | ((x >> 4) & 0x0F); // 交换相邻的4位
+    return x;
+}
+
+static void transpose_8x8_swar(uint8_t A[8], int n, uint8_t B[8]) {
+    // 将 8x8 矩阵的每一行加载到 64 位寄存器中
+    uint64_t src = 0;
+    for (int i = 0; i < n; i++) {
+        src |= (uint64_t)reverse_bits(A[i]) << (8 * i);
+    }
+
+    // SWAR 分阶段转置
+    src = (src & 0xAA55AA55AA55AA55) | ((src & 0x00AA00AA00AA00AA) << 7) | ((src >> 7) & 0x00AA00AA00AA00AA);
+    src = (src & 0xCCCC3333CCCC3333) | ((src & 0x0000CCCC0000CCCC) << 14) | ((src >> 14) & 0x0000CCCC0000CCCC);
+    src = (src & 0xF0F0F0F00F0F0F0F) | ((src & 0x00000000F0F0F0F0) << 28) | ((src >> 28) & 0x00000000F0F0F0F0);
+
+    // 将转置后的结果存储到 B 数组中
+    for (int i = 0; i < 8; i++) {
+        B[i] = (src >> (8 * i)) & 0xFF;
+    }
 }
 
 static void slogic_basic_16_submit_raw_data(void *data, size_t len, const struct sr_dev_inst *sdi) {
@@ -558,6 +649,10 @@ static void slogic_basic_16_submit_raw_data(void *data, size_t len, const struct
 	uint8_t *ptr = g_malloc(length);
 
 	for(size_t i=0; i<len; i+=devc->cur_samplechannel) {
+		if (devc->cur_samplechannel <= 8) {
+			transpose_8x8_swar(data + i, devc->cur_samplechannel, ptr + i / devc->cur_samplechannel * 8);
+			continue;
+		}
 		for(size_t j=0; j<8; j++) {
 			#define B(n) (((((uint8_t *)data)[i+(n)] >> 7-j) & 0x1) << ((n)%8))
 			switch (devc->cur_samplechannel) {
