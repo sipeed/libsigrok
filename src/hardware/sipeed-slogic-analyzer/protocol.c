@@ -286,9 +286,6 @@ SR_PRIV int sipeed_slogic_acquisition_start(const struct sr_dev_inst *sdi)
 	std_session_send_df_header(sdi);
 	std_session_send_df_frame_begin(sdi);
 
-	devc->transfers_reached_time_start = g_get_monotonic_time();
-	devc->transfers_reached_time_latest = devc->transfers_reached_time_start;
-
 	if (!devc->num_transfers_used) {
 		sipeed_slogic_acquisition_stop(sdi);
 		return SR_OK;
@@ -298,6 +295,9 @@ SR_PRIV int sipeed_slogic_acquisition_start(const struct sr_dev_inst *sdi)
 		sr_err("Unhandled `CMD_RUN`");
 		return ret;
 	}
+
+	devc->transfers_reached_time_start = g_get_monotonic_time();
+	devc->transfers_reached_time_latest = devc->transfers_reached_time_start;
 
 	return SR_OK;
 }

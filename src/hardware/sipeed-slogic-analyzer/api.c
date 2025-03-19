@@ -559,20 +559,20 @@ static int slogic_basic_16_remote_run(const struct sr_dev_inst *sdi) {
 		slogic_usb_control_write(sdi, SLOGIC_BASIC_16_CONTROL_OUT_REQ_REG_WRITE, SLOGIC_BASIC_16_R32_AUX, 0x0000, cmd_aux, 4, 500);
 		do {
 			slogic_usb_control_read(sdi, SLOGIC_BASIC_16_CONTROL_IN_REQ_REG_READ, SLOGIC_BASIC_16_R32_AUX, 0x0000, cmd_aux, 4, 500);
-			sr_dbg("read aux channel.");
+			sr_dbg("read aux channel: %08x.", ((uint32_t*)cmd_aux)[0]);
 		} while (!(cmd_aux[2] & 0x01));
 		sr_dbg("channel length: %u.", (*(uint16_t*)cmd_aux)>>8);
 		slogic_usb_control_read(sdi, SLOGIC_BASIC_16_CONTROL_IN_REQ_REG_READ, SLOGIC_BASIC_16_R32_AUX, 0x0000, cmd_aux, 4 + (*(uint16_t*)cmd_aux)>>8, 500);
 
-		// sr_dbg("aux: %u %u %u %u %08x.", cmd_aux[0], cmd_aux[1], cmd_aux[2], cmd_aux[3], *(uint32_t*)(cmd_aux+4));
+		// sr_dbg("aux: %u %u %u %u %08x.", cmd_aux[0], cmd_aux[1], cmd_aux[2], cmd_aux[3], ((uint32_t*)(cmd_aux+4))[0]);
 
 		*(uint32_t*)(cmd_aux+4) = (1 << devc->cur_samplechannel) - 1;
 
-		// sr_dbg("aux: %u %u %u %u %08x.", cmd_aux[0], cmd_aux[1], cmd_aux[2], cmd_aux[3], *(uint32_t*)(cmd_aux+4));
+		// sr_dbg("aux: %u %u %u %u %08x.", cmd_aux[0], cmd_aux[1], cmd_aux[2], cmd_aux[3], ((uint32_t*)(cmd_aux+4))[0]);
 		slogic_usb_control_write(sdi, SLOGIC_BASIC_16_CONTROL_OUT_REQ_REG_WRITE, SLOGIC_BASIC_16_R32_AUX, 0x0000, cmd_aux, 4 + (*(uint16_t*)cmd_aux)>>8, 500);
 
 		slogic_usb_control_read(sdi, SLOGIC_BASIC_16_CONTROL_IN_REQ_REG_READ, SLOGIC_BASIC_16_R32_AUX, 0x0000, cmd_aux, 4 + (*(uint16_t*)cmd_aux)>>8, 500);
-		sr_dbg("aux: %u %u %u %u %08x.", cmd_aux[0], cmd_aux[1], cmd_aux[2], cmd_aux[3], *(uint32_t*)(cmd_aux+4));
+		sr_dbg("aux: %u %u %u %u %08x.", cmd_aux[0], cmd_aux[1], cmd_aux[2], cmd_aux[3], ((uint32_t*)(cmd_aux+4))[0]);
 
 		if ((1 << devc->cur_samplechannel) - 1 != *(uint32_t*)(cmd_aux+4)) {
 			sr_dbg("Failed to configure sample channel.");
@@ -587,22 +587,22 @@ static int slogic_basic_16_remote_run(const struct sr_dev_inst *sdi) {
 		slogic_usb_control_write(sdi, SLOGIC_BASIC_16_CONTROL_OUT_REQ_REG_WRITE, SLOGIC_BASIC_16_R32_AUX, 0x0000, cmd_aux, 4, 500);
 		do {
 			slogic_usb_control_read(sdi, SLOGIC_BASIC_16_CONTROL_IN_REQ_REG_READ, SLOGIC_BASIC_16_R32_AUX, 0x0000, cmd_aux, 4, 500);
-			sr_dbg("read aux samplerate.");
+			sr_dbg("read aux samplerate: %08x.", ((uint32_t*)cmd_aux)[0]);
 		} while (!(cmd_aux[2] & 0x01));
 		sr_dbg("samplerate length: %u.", (*(uint16_t*)cmd_aux)>>8);
 		slogic_usb_control_read(sdi, SLOGIC_BASIC_16_CONTROL_IN_REQ_REG_READ, SLOGIC_BASIC_16_R32_AUX, 0x0000, cmd_aux, 4 + (*(uint16_t*)cmd_aux)>>8, 500);
 
-		// sr_dbg("aux: %u %u %u %u %u.", cmd_aux[0], cmd_aux[1], cmd_aux[2], cmd_aux[3], *(uint64_t*)(cmd_aux+4));
+		sr_dbg("aux: %u %u %u %u %x %u %u.", cmd_aux[0], cmd_aux[1], cmd_aux[2], cmd_aux[3], ((uint16_t*)(cmd_aux+4))[0], ((uint16_t*)(cmd_aux+4))[1], ((uint32_t*)(cmd_aux+4))[1]);
 
-		*(uint64_t*)(cmd_aux+4) = devc->cur_samplerate;
+		// ((uint32_t*)(cmd_aux+4))[0] = devc->cur_samplerate;
 
-		// sr_dbg("aux: %u %u %u %u %u.", cmd_aux[0], cmd_aux[1], cmd_aux[2], cmd_aux[3], *(uint64_t*)(cmd_aux+4));
+		sr_dbg("aux: %u %u %u %u %x %u %u.", cmd_aux[0], cmd_aux[1], cmd_aux[2], cmd_aux[3], ((uint16_t*)(cmd_aux+4))[0], ((uint16_t*)(cmd_aux+4))[1], ((uint32_t*)(cmd_aux+4))[1]);
 		slogic_usb_control_write(sdi, SLOGIC_BASIC_16_CONTROL_OUT_REQ_REG_WRITE, SLOGIC_BASIC_16_R32_AUX, 0x0000, cmd_aux, 4 + (*(uint16_t*)cmd_aux)>>8, 500);
 
 		slogic_usb_control_read(sdi, SLOGIC_BASIC_16_CONTROL_IN_REQ_REG_READ, SLOGIC_BASIC_16_R32_AUX, 0x0000, cmd_aux, 4 + (*(uint16_t*)cmd_aux)>>8, 500);
-		sr_dbg("aux: %u %u %u %u %u.", cmd_aux[0], cmd_aux[1], cmd_aux[2], cmd_aux[3], *(uint64_t*)(cmd_aux+4));
+		sr_dbg("aux: %u %u %u %u %x %u %u.", cmd_aux[0], cmd_aux[1], cmd_aux[2], cmd_aux[3], ((uint16_t*)(cmd_aux+4))[0], ((uint16_t*)(cmd_aux+4))[1], ((uint32_t*)(cmd_aux+4))[1]);
 
-		if (devc->cur_samplerate != *(uint64_t*)(cmd_aux+4)) {
+		if (1 /* devc->cur_samplerate != ((uint32_t*)(cmd_aux+4))[0] */) {
 			sr_dbg("Failed to configure samplerate.");
 		} else {
 			sr_dbg("Succeed to configure samplerate.");
