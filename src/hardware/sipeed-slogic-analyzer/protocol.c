@@ -66,11 +66,21 @@ static void LIBUSB_CALL receive_transfer(struct libusb_transfer *transfer) {
 
 			/* TODO: move out submit to ensure continuous transfers */
 			if (devc->cur_pattern_mode_idx != PATTERN_MODE_TEST_MAX_SPEED) {
-				uint8_t * d = transfer->buffer;
+				uint8_t *d = transfer->buffer;
 				size_t len = transfer->actual_length;
 				// sr_dbg("HEAD: %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x",
 				// 	d[0], d[1], d[2], d[3], d[4], d[5], d[6], d[7], d[8], d[9], d[10], d[11], d[12], d[13], d[14], d[15]);
-				devc->model->submit_raw_data(d, len, sdi);
+				// devc->model->submit_raw_data(d, len, sdi);
+
+				uint8_t *ptr = g_malloc(devc->per_transfer_nbytes);
+				if (!ptr) {
+					sr_err("Failed to allocate memory: %u bytes!", devc->per_transfer_nbytes);
+					sipeed_slogic_acquisition_stop(sdi);
+					break;
+				}
+				transfer->buffer = ptr;
+				GArray *array = g_array_new_take(d, len, FALSE, 1);
+				g_async_queue_push(devc->raw_data_queue, array);
 			}
 
 			devc->num_transfers_used -= 1;
@@ -151,10 +161,48 @@ static int handle_events(int fd, int revents, void *cb_data)
 		sr_info("Bulk in %u/%u bytes with %u transfers.", devc->samples_got_nbytes, devc->samples_need_nbytes, devc->num_transfers_completed);
 
 		sr_session_source_remove(sdi->session, -1 * (size_t)drvc->sr_ctx->libusb_ctx);
-		std_session_send_df_end(sdi);
 	}
 
 	libusb_handle_events_timeout_completed(drvc->sr_ctx->libusb_ctx, &(struct timeval){0, 0}, NULL);
+
+	return TRUE;
+}
+
+static int handle_data_events(int fd, int revents, void *cb_data)
+{
+	struct sr_dev_inst *sdi;
+	struct sr_dev_driver *di;
+	struct dev_context *devc;
+	struct drv_context *drvc;
+
+	(void)fd;
+	(void)revents;
+
+	sdi = cb_data;
+	devc = sdi->priv;
+	di = sdi->driver;
+	drvc = di->context;
+
+	// sr_spew("handle_data_events enter");
+
+	do {
+		if (g_async_queue_length(devc->raw_data_queue) == 0)
+			break;
+		GArray *array = g_async_queue_try_pop(devc->raw_data_queue);
+		if (array != NULL) {
+			devc->model->submit_raw_data(array->data, array->len, sdi);
+			g_array_unref(array);
+		}
+	} while (devc->acq_aborted);
+
+	if (devc->acq_aborted) {
+		std_session_send_df_end(sdi);
+
+		sr_session_source_remove(sdi->session, -1 * (size_t)devc->raw_data_queue);
+
+		g_async_queue_unref(devc->raw_data_queue);
+		devc->raw_data_queue = NULL;
+	}
 
 	return TRUE;
 }
@@ -248,7 +296,9 @@ SR_PRIV int sipeed_slogic_acquisition_start(const struct sr_dev_inst *sdi)
 	devc->num_transfers_completed = 0;
 	memset(devc->transfers, 0, sizeof(devc->transfers));
 	devc->transfers_reached_nbytes = 0;
+	devc->raw_data_queue = g_async_queue_new();
 
+	sr_session_source_add(sdi->session, -1 * (size_t)devc->raw_data_queue, 0, devc->per_transfer_duration, handle_data_events, (void *)sdi);
 	sr_session_source_add(sdi->session, -1 * (size_t)drvc->sr_ctx->libusb_ctx, 0, (devc->per_transfer_duration / 2)?:1, handle_events, (void *)sdi);
 
 	while (devc->num_transfers_used < NUM_MAX_TRANSFERS && devc->samples_got_nbytes + devc->num_transfers_used * devc->per_transfer_nbytes < devc->samples_need_nbytes)
@@ -293,6 +343,7 @@ SR_PRIV int sipeed_slogic_acquisition_start(const struct sr_dev_inst *sdi)
 
 	if ((ret = devc->model->operation.remote_run(sdi)) < 0) {
 		sr_err("Unhandled `CMD_RUN`");
+		sipeed_slogic_acquisition_stop(sdi);
 		return ret;
 	}
 

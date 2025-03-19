@@ -85,6 +85,8 @@ struct dev_context {
 		uint64_t transfers_reached_nbytes_latest; /* real received bytes this transfer */
 		int64_t transfers_reached_time_start;
 		int64_t transfers_reached_time_latest;
+
+		GAsyncQueue *raw_data_queue;
 	}; // usb
 
 	int acq_aborted;
