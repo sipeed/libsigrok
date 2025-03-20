@@ -30,7 +30,7 @@
 
 #define USB_VID_SIPEED UINT16_C(0x359f)
 #define NUM_MAX_TRANSFERS 64
-#define TRANSFERS_DURATION_TOLERANCE 0.50f
+#define TRANSFERS_DURATION_TOLERANCE 0.05f
 
 enum {
 	PATTERN_MODE_NOMAL,
@@ -87,6 +87,7 @@ struct dev_context {
 		int64_t transfers_reached_time_latest;
 
 		GAsyncQueue *raw_data_queue;
+		uint64_t timeout_count;
 	}; // usb
 
 	int acq_aborted;

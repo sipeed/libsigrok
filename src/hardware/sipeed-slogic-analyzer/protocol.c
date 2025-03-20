@@ -109,11 +109,18 @@ static void LIBUSB_CALL receive_transfer(struct libusb_transfer *transfer) {
 	}
 
 	if (devc->num_transfers_completed && (double)transfers_reached_duration / SR_KHZ(1) > (TRANSFERS_DURATION_TOLERANCE + 1) * devc->per_transfer_duration) {
-		sr_err("Timeout %.3fms!!! Reach duration limit: %.3f(%u+%.1f%%) except first one.",
-			(double)transfers_reached_duration / SR_KHZ(1),
-			(TRANSFERS_DURATION_TOLERANCE + 1) * devc->per_transfer_duration, devc->per_transfer_duration, TRANSFERS_DURATION_TOLERANCE * 100
-		);
-		devc->num_transfers_used = 0;
+		devc->timeout_count += 1;
+		if (devc->timeout_count > devc->num_transfers_used) {
+			sr_err("Timeout %.3fms!!! Reach duration limit: %.3f(%u+%.1f%%), %.3f > %.3f(%u+%.1f%%)(total) except first one.",
+				(double)transfers_reached_duration / SR_KHZ(1),
+				(TRANSFERS_DURATION_TOLERANCE + 1) * devc->per_transfer_duration, devc->per_transfer_duration, TRANSFERS_DURATION_TOLERANCE * 100,
+				(double)(transfers_reached_time_now - devc->transfers_reached_time_start) / SR_KHZ(1),
+				(TRANSFERS_DURATION_TOLERANCE + 1) * devc->per_transfer_duration * (devc->num_transfers_completed + 1), devc->per_transfer_duration * (devc->num_transfers_completed + 1), TRANSFERS_DURATION_TOLERANCE * 100
+			);
+			devc->num_transfers_used = 0;
+		}
+	} else {
+		devc->timeout_count = 0;
 	}
 
 	if (devc->num_transfers_used == 0) {
