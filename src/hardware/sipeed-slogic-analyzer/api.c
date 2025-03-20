@@ -555,11 +555,15 @@ static int slogic_basic_16_remote_run(const struct sr_dev_inst *sdi) {
 	slogic_usb_control_write(sdi, SLOGIC_BASIC_16_CONTROL_OUT_REQ_REG_WRITE, SLOGIC_BASIC_16_R32_CTRL, 0x0000, ARRAY_AND_SIZE(cmd_derst), 500);
 
 	{
+		size_t retry = 0;
 		uint8_t *cmd_aux = cmd_aux_channel;
 		slogic_usb_control_write(sdi, SLOGIC_BASIC_16_CONTROL_OUT_REQ_REG_WRITE, SLOGIC_BASIC_16_R32_AUX, 0x0000, cmd_aux, 4, 500);
 		do {
 			slogic_usb_control_read(sdi, SLOGIC_BASIC_16_CONTROL_IN_REQ_REG_READ, SLOGIC_BASIC_16_R32_AUX, 0x0000, cmd_aux, 4, 500);
-			sr_dbg("read aux channel: %08x.", ((uint32_t*)cmd_aux)[0]);
+			sr_dbg("[%u]read aux channel: %08x.", retry, ((uint32_t*)cmd_aux)[0]);
+			retry += 1;
+			if (retry > 5)
+				return SR_ERR_TIMEOUT;
 		} while (!(cmd_aux[2] & 0x01));
 		sr_dbg("channel length: %u.", (*(uint16_t*)cmd_aux)>>8);
 		slogic_usb_control_read(sdi, SLOGIC_BASIC_16_CONTROL_IN_REQ_REG_READ, SLOGIC_BASIC_16_R32_AUX, 0x0000, cmd_aux, 4 + (*(uint16_t*)cmd_aux)>>8, 500);
@@ -583,11 +587,15 @@ static int slogic_basic_16_remote_run(const struct sr_dev_inst *sdi) {
 
 
 	{
+		size_t retry = 0;
 		uint8_t *cmd_aux = cmd_aux_samplerate;
 		slogic_usb_control_write(sdi, SLOGIC_BASIC_16_CONTROL_OUT_REQ_REG_WRITE, SLOGIC_BASIC_16_R32_AUX, 0x0000, cmd_aux, 4, 500);
 		do {
 			slogic_usb_control_read(sdi, SLOGIC_BASIC_16_CONTROL_IN_REQ_REG_READ, SLOGIC_BASIC_16_R32_AUX, 0x0000, cmd_aux, 4, 500);
-			sr_dbg("read aux samplerate: %08x.", ((uint32_t*)cmd_aux)[0]);
+			sr_dbg("[%u]read aux samplerate: %08x.", retry, ((uint32_t*)cmd_aux)[0]);
+			retry += 1;
+			if (retry > 5)
+				return SR_ERR_TIMEOUT;
 		} while (!(cmd_aux[2] & 0x01));
 		sr_dbg("samplerate length: %u.", (*(uint16_t*)cmd_aux)>>8);
 		slogic_usb_control_read(sdi, SLOGIC_BASIC_16_CONTROL_IN_REQ_REG_READ, SLOGIC_BASIC_16_R32_AUX, 0x0000, cmd_aux, 4 + (*(uint16_t*)cmd_aux)>>8, 500);
