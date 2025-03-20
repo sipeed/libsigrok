@@ -79,7 +79,7 @@ static void LIBUSB_CALL receive_transfer(struct libusb_transfer *transfer) {
 					break;
 				}
 				transfer->buffer = ptr;
-				GArray *array = g_array_new_take(d, len, FALSE, 1);
+				GByteArray *array = g_byte_array_new_take(d, len);
 				g_async_queue_push(devc->raw_data_queue, array);
 			}
 
@@ -188,10 +188,10 @@ static int handle_data_events(int fd, int revents, void *cb_data)
 	do {
 		if (g_async_queue_length(devc->raw_data_queue) == 0)
 			break;
-		GArray *array = g_async_queue_try_pop(devc->raw_data_queue);
+		GByteArray *array = g_async_queue_try_pop(devc->raw_data_queue);
 		if (array != NULL) {
 			devc->model->submit_raw_data(array->data, array->len, sdi);
-			g_array_unref(array);
+			g_byte_array_unref(array);
 		}
 	} while (devc->acq_aborted);
 
