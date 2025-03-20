@@ -147,6 +147,10 @@ static int handle_events(int fd, int revents, void *cb_data)
 
 	//sr_spew("handle_events enter");
 
+	if (!devc->raw_data_handle_thread) {
+		sipeed_slogic_acquisition_stop(sdi);
+	}
+
 	if (devc->acq_aborted) {
 		for (size_t i = 0; i < NUM_MAX_TRANSFERS; ++i) {
 			struct libusb_transfer *transfer = devc->transfers[i];
@@ -168,6 +172,7 @@ static int handle_events(int fd, int revents, void *cb_data)
 		sr_info("Bulk in %u/%u bytes with %u transfers.", devc->samples_got_nbytes, devc->samples_need_nbytes, devc->num_transfers_completed);
 
 		sr_session_source_remove(sdi->session, -1 * (size_t)drvc->sr_ctx->libusb_ctx);
+		g_thread_join(devc->raw_data_handle_thread);
 	}
 
 	libusb_handle_events_timeout_completed(drvc->sr_ctx->libusb_ctx, &(struct timeval){0, 0}, NULL);
@@ -175,43 +180,39 @@ static int handle_events(int fd, int revents, void *cb_data)
 	return TRUE;
 }
 
-static int handle_data_events(int fd, int revents, void *cb_data)
+static gpointer raw_data_handle_thread_func(gpointer user_data)
 {
 	struct sr_dev_inst *sdi;
 	struct sr_dev_driver *di;
 	struct dev_context *devc;
 	struct drv_context *drvc;
 
-	(void)fd;
-	(void)revents;
-
-	sdi = cb_data;
+	sdi = user_data;
 	devc = sdi->priv;
 	di = sdi->driver;
 	drvc = di->context;
 
-	// sr_spew("handle_data_events enter");
+	while (1) {
+		do {
+			if (g_async_queue_length(devc->raw_data_queue) == 0)
+				break;
+			GByteArray *array = g_async_queue_try_pop(devc->raw_data_queue);
+			if (array != NULL) {
+				devc->model->submit_raw_data(array->data, array->len, sdi);
+				g_byte_array_unref(array);
+			}
+		} while (devc->acq_aborted);
 
-	do {
-		if (g_async_queue_length(devc->raw_data_queue) == 0)
+		if (devc->acq_aborted && g_async_queue_length(devc->raw_data_queue) == 0) {
+			std_session_send_df_end(sdi);
+
+			g_async_queue_unref(devc->raw_data_queue);
+			devc->raw_data_queue = NULL;
 			break;
-		GByteArray *array = g_async_queue_try_pop(devc->raw_data_queue);
-		if (array != NULL) {
-			devc->model->submit_raw_data(array->data, array->len, sdi);
-			g_byte_array_unref(array);
 		}
-	} while (devc->acq_aborted);
-
-	if (devc->acq_aborted) {
-		std_session_send_df_end(sdi);
-
-		sr_session_source_remove(sdi->session, -1 * (size_t)devc->raw_data_queue);
-
-		g_async_queue_unref(devc->raw_data_queue);
-		devc->raw_data_queue = NULL;
 	}
 
-	return TRUE;
+	return NULL;
 }
 
 SR_PRIV int sipeed_slogic_acquisition_start(const struct sr_dev_inst *sdi)
@@ -304,8 +305,8 @@ SR_PRIV int sipeed_slogic_acquisition_start(const struct sr_dev_inst *sdi)
 	memset(devc->transfers, 0, sizeof(devc->transfers));
 	devc->transfers_reached_nbytes = 0;
 	devc->raw_data_queue = g_async_queue_new();
+	devc->raw_data_handle_thread = g_thread_new("raw_data_handle_thread", raw_data_handle_thread_func, sdi);
 
-	sr_session_source_add(sdi->session, -1 * (size_t)devc->raw_data_queue, 0, devc->per_transfer_duration, handle_data_events, (void *)sdi);
 	sr_session_source_add(sdi->session, -1 * (size_t)drvc->sr_ctx->libusb_ctx, 0, (devc->per_transfer_duration / 2)?:1, handle_events, (void *)sdi);
 
 	while (devc->num_transfers_used < NUM_MAX_TRANSFERS && devc->samples_got_nbytes + devc->num_transfers_used * devc->per_transfer_nbytes < devc->samples_need_nbytes)

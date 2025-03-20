@@ -86,6 +86,7 @@ struct dev_context {
 		int64_t transfers_reached_time_start;
 		int64_t transfers_reached_time_latest;
 
+		GThread *raw_data_handle_thread;
 		GAsyncQueue *raw_data_queue;
 		uint64_t timeout_count;
 	}; // usb
