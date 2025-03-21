@@ -542,14 +542,14 @@ static int slogic_basic_16_remote_run(const struct sr_dev_inst *sdi) {
 	struct dev_context *devc = sdi->priv;
 	const uint8_t cmd_derst[] = {0x00, 0x00, 0x00, 0x00};
 	const uint8_t cmd_run[] = {0x01, 0x00, 0x00, 0x00};
-	uint8_t cmd_aux_channel[8] = {0x01, 0x00, 0x00, 0x00}; // configure channel
-	uint8_t cmd_aux_samplerate[12] = {0x02, 0x00, 0x00, 0x00}; // configure samplerate
+	uint8_t cmd_aux[64] = {0}; // configure aux
 
 	slogic_usb_control_write(sdi, SLOGIC_BASIC_16_CONTROL_OUT_REQ_REG_WRITE, SLOGIC_BASIC_16_R32_CTRL, 0x0000, ARRAY_AND_SIZE(cmd_derst), 500);
 
 	{
 		size_t retry = 0;
-		uint8_t *cmd_aux = cmd_aux_channel;
+		memset(cmd_aux, 0, sizeof(cmd_aux));
+		*(uint32_t*)(cmd_aux) = 0x00000001;
 		slogic_usb_control_write(sdi, SLOGIC_BASIC_16_CONTROL_OUT_REQ_REG_WRITE, SLOGIC_BASIC_16_R32_AUX, 0x0000, cmd_aux, 4, 500);
 		do {
 			slogic_usb_control_read(sdi, SLOGIC_BASIC_16_CONTROL_IN_REQ_REG_READ, SLOGIC_BASIC_16_R32_AUX, 0x0000, cmd_aux, 4, 500);
@@ -558,17 +558,17 @@ static int slogic_basic_16_remote_run(const struct sr_dev_inst *sdi) {
 			if (retry > 5)
 				return SR_ERR_TIMEOUT;
 		} while (!(cmd_aux[2] & 0x01));
-		sr_dbg("channel length: %u.", (*(uint16_t*)cmd_aux)>>8);
-		slogic_usb_control_read(sdi, SLOGIC_BASIC_16_CONTROL_IN_REQ_REG_READ, SLOGIC_BASIC_16_R32_AUX, 0x0000, cmd_aux, 4 + (*(uint16_t*)cmd_aux)>>8, 500);
+		sr_dbg("channel length: %u.", (*(uint16_t*)cmd_aux)>>9);
+		slogic_usb_control_read(sdi, SLOGIC_BASIC_16_CONTROL_IN_REQ_REG_READ, SLOGIC_BASIC_16_R32_AUX + 4, 0x0000, cmd_aux + 4, (*(uint16_t*)cmd_aux)>>9, 500);
 
-		// sr_dbg("aux: %u %u %u %u %08x.", cmd_aux[0], cmd_aux[1], cmd_aux[2], cmd_aux[3], ((uint32_t*)(cmd_aux+4))[0]);
+		sr_dbg("aux: %u %u %u %u %08x.", cmd_aux[0], cmd_aux[1], cmd_aux[2], cmd_aux[3], ((uint32_t*)(cmd_aux+4))[0]);
 
 		*(uint32_t*)(cmd_aux+4) = (1 << devc->cur_samplechannel) - 1;
 
-		// sr_dbg("aux: %u %u %u %u %08x.", cmd_aux[0], cmd_aux[1], cmd_aux[2], cmd_aux[3], ((uint32_t*)(cmd_aux+4))[0]);
-		slogic_usb_control_write(sdi, SLOGIC_BASIC_16_CONTROL_OUT_REQ_REG_WRITE, SLOGIC_BASIC_16_R32_AUX, 0x0000, cmd_aux, 4 + (*(uint16_t*)cmd_aux)>>8, 500);
+		sr_dbg("aux: %u %u %u %u %08x.", cmd_aux[0], cmd_aux[1], cmd_aux[2], cmd_aux[3], ((uint32_t*)(cmd_aux+4))[0]);
+		slogic_usb_control_write(sdi, SLOGIC_BASIC_16_CONTROL_OUT_REQ_REG_WRITE, SLOGIC_BASIC_16_R32_AUX + 4, 0x0000, cmd_aux + 4, (*(uint16_t*)cmd_aux)>>9, 500);
 
-		slogic_usb_control_read(sdi, SLOGIC_BASIC_16_CONTROL_IN_REQ_REG_READ, SLOGIC_BASIC_16_R32_AUX, 0x0000, cmd_aux, 4 + (*(uint16_t*)cmd_aux)>>8, 500);
+		slogic_usb_control_read(sdi, SLOGIC_BASIC_16_CONTROL_IN_REQ_REG_READ, SLOGIC_BASIC_16_R32_AUX + 4, 0x0000, cmd_aux + 4, (*(uint16_t*)cmd_aux)>>9, 500);
 		sr_dbg("aux: %u %u %u %u %08x.", cmd_aux[0], cmd_aux[1], cmd_aux[2], cmd_aux[3], ((uint32_t*)(cmd_aux+4))[0]);
 
 		if ((1 << devc->cur_samplechannel) - 1 != *(uint32_t*)(cmd_aux+4)) {
@@ -581,7 +581,8 @@ static int slogic_basic_16_remote_run(const struct sr_dev_inst *sdi) {
 
 	{
 		size_t retry = 0;
-		uint8_t *cmd_aux = cmd_aux_samplerate;
+		memset(cmd_aux, 0, sizeof(cmd_aux));
+		*(uint32_t*)(cmd_aux) = 0x00000002;
 		slogic_usb_control_write(sdi, SLOGIC_BASIC_16_CONTROL_OUT_REQ_REG_WRITE, SLOGIC_BASIC_16_R32_AUX, 0x0000, cmd_aux, 4, 500);
 		do {
 			slogic_usb_control_read(sdi, SLOGIC_BASIC_16_CONTROL_IN_REQ_REG_READ, SLOGIC_BASIC_16_R32_AUX, 0x0000, cmd_aux, 4, 500);
@@ -590,17 +591,19 @@ static int slogic_basic_16_remote_run(const struct sr_dev_inst *sdi) {
 			if (retry > 5)
 				return SR_ERR_TIMEOUT;
 		} while (!(cmd_aux[2] & 0x01));
-		sr_dbg("samplerate length: %u.", (*(uint16_t*)cmd_aux)>>8);
-		slogic_usb_control_read(sdi, SLOGIC_BASIC_16_CONTROL_IN_REQ_REG_READ, SLOGIC_BASIC_16_R32_AUX, 0x0000, cmd_aux, 4 + (*(uint16_t*)cmd_aux)>>8, 500);
+		sr_dbg("samplerate length: %u.", (*(uint16_t*)cmd_aux)>>9);
+		slogic_usb_control_read(sdi, SLOGIC_BASIC_16_CONTROL_IN_REQ_REG_READ, SLOGIC_BASIC_16_R32_AUX + 4, 0x0000, cmd_aux + 4, (*(uint16_t*)cmd_aux)>>9, 500);
 
 		sr_dbg("aux: %u %u %u %u %x %u %u.", cmd_aux[0], cmd_aux[1], cmd_aux[2], cmd_aux[3], ((uint16_t*)(cmd_aux+4))[0], ((uint16_t*)(cmd_aux+4))[1], ((uint32_t*)(cmd_aux+4))[1]);
 
 		// ((uint32_t*)(cmd_aux+4))[0] = devc->cur_samplerate;
+		((uint16_t*)(cmd_aux+4))[0] = 0x1;
+		((uint32_t*)(cmd_aux+4))[1] = 0x0;
 
 		sr_dbg("aux: %u %u %u %u %x %u %u.", cmd_aux[0], cmd_aux[1], cmd_aux[2], cmd_aux[3], ((uint16_t*)(cmd_aux+4))[0], ((uint16_t*)(cmd_aux+4))[1], ((uint32_t*)(cmd_aux+4))[1]);
-		slogic_usb_control_write(sdi, SLOGIC_BASIC_16_CONTROL_OUT_REQ_REG_WRITE, SLOGIC_BASIC_16_R32_AUX, 0x0000, cmd_aux, 4 + (*(uint16_t*)cmd_aux)>>8, 500);
+		slogic_usb_control_write(sdi, SLOGIC_BASIC_16_CONTROL_OUT_REQ_REG_WRITE, SLOGIC_BASIC_16_R32_AUX + 4, 0x0000, cmd_aux + 4, (*(uint16_t*)cmd_aux)>>9, 500);
 
-		slogic_usb_control_read(sdi, SLOGIC_BASIC_16_CONTROL_IN_REQ_REG_READ, SLOGIC_BASIC_16_R32_AUX, 0x0000, cmd_aux, 4 + (*(uint16_t*)cmd_aux)>>8, 500);
+		slogic_usb_control_read(sdi, SLOGIC_BASIC_16_CONTROL_IN_REQ_REG_READ, SLOGIC_BASIC_16_R32_AUX + 4, 0x0000, cmd_aux + 4, (*(uint16_t*)cmd_aux)>>9, 500);
 		sr_dbg("aux: %u %u %u %u %x %u %u.", cmd_aux[0], cmd_aux[1], cmd_aux[2], cmd_aux[3], ((uint16_t*)(cmd_aux+4))[0], ((uint16_t*)(cmd_aux+4))[1], ((uint32_t*)(cmd_aux+4))[1]);
 
 		if (1 /* devc->cur_samplerate != ((uint32_t*)(cmd_aux+4))[0] */) {
@@ -645,22 +648,31 @@ static int slogic_usb_control_write(const struct sr_dev_inst *sdi, uint8_t reque
 	devc = sdi->priv;
 	usb  = sdi->conn;
 
-	sr_spew("%s req:%u value:%u index:%u %p:%u in %dms.", __func__, request, value, index, data, len, timeout);
+	sr_spew("%s: req:%u value:%u index:%u %p:%u in %dms.", __func__, request, value, index, data, len, timeout);
 	if (!data && len) {
-		sr_warn("%s Nothing to write although len(%u)>0!", __func__, len);
+		sr_warn("%s: Nothing to write although len(%u)>0!", __func__, len);
 		len = 0;
+	} else if (len & 0x3) {
+		size_t len_aligndup = (len + 0x3)&(~0x3);
+		sr_warn("%s: Align up to %u(from %u)!", __func__, len_aligndup, len);
+		len = len_aligndup;
 	}
 
-	if ((ret = libusb_control_transfer(
-		usb->devhdl, LIBUSB_REQUEST_TYPE_VENDOR | LIBUSB_ENDPOINT_OUT,
-		request,
-		value, index,
-		(unsigned char *)data, len,
-		timeout
-	)) < 0) {
-		sr_err("%s failed(libusb: %s)!", __func__, libusb_error_name(ret));
-		return SR_ERR_NA;
+	ret = 0;
+	for (size_t i = 0; i < len; i+=4) {
+		ret += libusb_control_transfer(
+			usb->devhdl, LIBUSB_REQUEST_TYPE_VENDOR | LIBUSB_ENDPOINT_OUT,
+			request,
+			value + i, index,
+			(unsigned char *)data + i, 4,
+			timeout
+		);
+		if (ret < 0) {
+			sr_err("%s: failed(libusb: %s)!", __func__, libusb_error_name(ret));
+			return SR_ERR_NA;
+		}
 	}
+
 	return ret;
 }
 
@@ -674,9 +686,9 @@ static int slogic_usb_control_read(const struct sr_dev_inst *sdi, uint8_t reques
 	devc = sdi->priv;
 	usb  = sdi->conn;
 
-	sr_spew("%s req:%u value:%u index:%u %p:%u in %dms.", __func__, request, value, index, data, len, timeout);
+	sr_spew("%s: req:%u value:%u index:%u %p:%u in %dms.", __func__, request, value, index, data, len, timeout);
 	if (!data && len) {
-		sr_err("%s Can't read to NULL while len(%u)>0!", __func__, len);
+		sr_err("%s: Can't read to NULL while len(%u)>0!", __func__, len);
 		return SR_ERR_ARG;
 	}
 
@@ -687,7 +699,7 @@ static int slogic_usb_control_read(const struct sr_dev_inst *sdi, uint8_t reques
 		(unsigned char *)data, len,
 		timeout
 	)) < 0) {
-		sr_err("%s failed(libusb: %s)!", __func__, libusb_error_name(ret));
+		sr_err("%s: failed(libusb: %s)!", __func__, libusb_error_name(ret));
 		return SR_ERR_NA;
 	}
 	return ret;
