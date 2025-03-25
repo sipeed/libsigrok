@@ -97,6 +97,7 @@ static const uint64_t samplerates[] = {
 	/* x 4ch */
 	SR_MHZ(80),
 	/* x 2ch */
+	SR_MHZ(125),
 	SR_MHZ(160),
 
 	/* Slogic Basic 16 U3 */
@@ -592,24 +593,34 @@ static int slogic_basic_16_remote_run(const struct sr_dev_inst *sdi) {
 				return SR_ERR_TIMEOUT;
 		} while (!(cmd_aux[2] & 0x01));
 		sr_dbg("samplerate length: %u.", (*(uint16_t*)cmd_aux)>>9);
-		slogic_usb_control_read(sdi, SLOGIC_BASIC_16_CONTROL_IN_REQ_REG_READ, SLOGIC_BASIC_16_R32_AUX + 4, 0x0000, cmd_aux + 4, (*(uint16_t*)cmd_aux)>>9, 500);
 
-		sr_dbg("aux: %u %u %u %u %x %u %u.", cmd_aux[0], cmd_aux[1], cmd_aux[2], cmd_aux[3], ((uint16_t*)(cmd_aux+4))[0], ((uint16_t*)(cmd_aux+4))[1], ((uint32_t*)(cmd_aux+4))[1]);
+		while (((uint16_t*)(cmd_aux+4))[0] <= 1) {
+			slogic_usb_control_read(sdi, SLOGIC_BASIC_16_CONTROL_IN_REQ_REG_READ, SLOGIC_BASIC_16_R32_AUX + 4, 0x0000, cmd_aux + 4, (*(uint16_t*)cmd_aux)>>9, 500);
 
-		// ((uint32_t*)(cmd_aux+4))[0] = devc->cur_samplerate;
-		((uint16_t*)(cmd_aux+4))[0] = 0x1;
-		((uint32_t*)(cmd_aux+4))[1] = 0x0;
+			sr_dbg("aux: %u %u %u %u %x %u %u.", cmd_aux[0], cmd_aux[1], cmd_aux[2], cmd_aux[3], ((uint16_t*)(cmd_aux+4))[0], ((uint16_t*)(cmd_aux+4))[1], ((uint32_t*)(cmd_aux+4))[1]);
 
-		sr_dbg("aux: %u %u %u %u %x %u %u.", cmd_aux[0], cmd_aux[1], cmd_aux[2], cmd_aux[3], ((uint16_t*)(cmd_aux+4))[0], ((uint16_t*)(cmd_aux+4))[1], ((uint32_t*)(cmd_aux+4))[1]);
-		slogic_usb_control_write(sdi, SLOGIC_BASIC_16_CONTROL_OUT_REQ_REG_WRITE, SLOGIC_BASIC_16_R32_AUX + 4, 0x0000, cmd_aux + 4, (*(uint16_t*)cmd_aux)>>9, 500);
 
-		slogic_usb_control_read(sdi, SLOGIC_BASIC_16_CONTROL_IN_REQ_REG_READ, SLOGIC_BASIC_16_R32_AUX + 4, 0x0000, cmd_aux + 4, (*(uint16_t*)cmd_aux)>>9, 500);
-		sr_dbg("aux: %u %u %u %u %x %u %u.", cmd_aux[0], cmd_aux[1], cmd_aux[2], cmd_aux[3], ((uint16_t*)(cmd_aux+4))[0], ((uint16_t*)(cmd_aux+4))[1], ((uint32_t*)(cmd_aux+4))[1]);
+			uint64_t base = SR_MHZ(1) * ((uint16_t*)(cmd_aux+4))[1];
+			if (base % devc->cur_samplerate) {
+				sr_dbg("Failed to configure samplerate from base[%u] %u.", ((uint16_t*)(cmd_aux+4))[0], base);
+				((uint16_t*)(cmd_aux+4))[0] += 1;
+				continue;
+			}
+			uint32_t div = base / devc->cur_samplerate;
+			((uint32_t*)(cmd_aux+4))[1] = div;
 
-		if (1 /* devc->cur_samplerate != ((uint32_t*)(cmd_aux+4))[0] */) {
-			sr_dbg("Failed to configure samplerate.");
-		} else {
+			sr_dbg("aux: %u %u %u %u %x %u %u.", cmd_aux[0], cmd_aux[1], cmd_aux[2], cmd_aux[3], ((uint16_t*)(cmd_aux+4))[0], ((uint16_t*)(cmd_aux+4))[1], ((uint32_t*)(cmd_aux+4))[1]);
+			slogic_usb_control_write(sdi, SLOGIC_BASIC_16_CONTROL_OUT_REQ_REG_WRITE, SLOGIC_BASIC_16_R32_AUX + 4, 0x0000, cmd_aux + 4, (*(uint16_t*)cmd_aux)>>9, 500);
+
+			slogic_usb_control_read(sdi, SLOGIC_BASIC_16_CONTROL_IN_REQ_REG_READ, SLOGIC_BASIC_16_R32_AUX + 4, 0x0000, cmd_aux + 4, (*(uint16_t*)cmd_aux)>>9, 500);
+			sr_dbg("aux: %u %u %u %u %x %u %u.", cmd_aux[0], cmd_aux[1], cmd_aux[2], cmd_aux[3], ((uint16_t*)(cmd_aux+4))[0], ((uint16_t*)(cmd_aux+4))[1], ((uint32_t*)(cmd_aux+4))[1]);
+			break;
+		}
+
+		if (((uint16_t*)(cmd_aux+4))[0] <= 1) {
 			sr_dbg("Succeed to configure samplerate.");
+		} else {
+			sr_dbg("Failed to configure samplerate.");
 		}
 	}
 
@@ -690,17 +701,26 @@ static int slogic_usb_control_read(const struct sr_dev_inst *sdi, uint8_t reques
 	if (!data && len) {
 		sr_err("%s: Can't read to NULL while len(%u)>0!", __func__, len);
 		return SR_ERR_ARG;
+	} else if (len & 0x3) {
+		size_t len_aligndup = (len + 0x3)&(~0x3);
+		sr_warn("%s: Align up to %u(from %u)!", __func__, len_aligndup, len);
+		len = len_aligndup;
 	}
 
-	if ((ret = libusb_control_transfer(
-		usb->devhdl, LIBUSB_REQUEST_TYPE_VENDOR | LIBUSB_ENDPOINT_IN,
-		request,
-		value, index,
-		(unsigned char *)data, len,
-		timeout
-	)) < 0) {
-		sr_err("%s: failed(libusb: %s)!", __func__, libusb_error_name(ret));
-		return SR_ERR_NA;
+	ret = 0;
+	for (size_t i = 0; i < len; i+=4) {
+		ret += libusb_control_transfer(
+			usb->devhdl, LIBUSB_REQUEST_TYPE_VENDOR | LIBUSB_ENDPOINT_IN,
+			request,
+			value + i, index,
+			(unsigned char *)data + i, 4,
+			timeout
+		);
+		if (ret < 0) {
+			sr_err("%s: failed(libusb: %s)!", __func__, libusb_error_name(ret));
+			return SR_ERR_NA;
+		}
 	}
+
 	return ret;
 }
