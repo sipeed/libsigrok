@@ -604,6 +604,7 @@ static int slogic_basic_16_remote_run(const struct sr_dev_inst *sdi) {
 			if (base % devc->cur_samplerate) {
 				sr_dbg("Failed to configure samplerate from base[%u] %u.", ((uint16_t*)(cmd_aux+4))[0], base);
 				((uint16_t*)(cmd_aux+4))[0] += 1;
+				slogic_usb_control_write(sdi, SLOGIC_BASIC_16_CONTROL_OUT_REQ_REG_WRITE, SLOGIC_BASIC_16_R32_AUX + 4, 0x0000, cmd_aux + 4, 4, 500);
 				continue;
 			}
 			uint32_t div = base / devc->cur_samplerate;
