@@ -36,9 +36,6 @@ static void LIBUSB_CALL receive_transfer(struct libusb_transfer *transfer) {
 	int64_t transfers_reached_time_now = g_get_monotonic_time();
 	int64_t transfers_reached_duration = transfers_reached_time_now - devc->transfers_reached_time_latest;
 
-	if (devc->acq_aborted == 1)
-		return;
-
 	sr_spew("Transfer[%d] status: %d(%s)", std_u64_idx(g_variant_new_uint64((uint64_t)transfer), (uint64_t*)devc->transfers, NUM_MAX_TRANSFERS),
 		transfer->status, libusb_error_name(transfer->status));
 	switch (transfer->status) {
@@ -75,7 +72,7 @@ static void LIBUSB_CALL receive_transfer(struct libusb_transfer *transfer) {
 				uint8_t *ptr = g_malloc(devc->per_transfer_nbytes);
 				if (!ptr) {
 					sr_err("Failed to allocate memory: %u bytes!", devc->per_transfer_nbytes);
-					sipeed_slogic_acquisition_stop(sdi);
+					devc->acq_aborted = 1;
 					break;
 				}
 				transfer->buffer = ptr;
@@ -124,7 +121,7 @@ static void LIBUSB_CALL receive_transfer(struct libusb_transfer *transfer) {
 	}
 
 	if (devc->num_transfers_used == 0) {
-		sipeed_slogic_acquisition_stop(sdi);
+		devc->acq_aborted = 1;
 	}
 
 	devc->num_transfers_completed += 1;
@@ -147,32 +144,38 @@ static int handle_events(int fd, int revents, void *cb_data)
 
 	//sr_spew("handle_events enter");
 
-	if (!devc->raw_data_handle_thread) {
-		sipeed_slogic_acquisition_stop(sdi);
-	}
-
 	if (devc->acq_aborted) {
-		for (size_t i = 0; i < NUM_MAX_TRANSFERS; ++i) {
-			struct libusb_transfer *transfer = devc->transfers[i];
-			if (transfer) {
-				libusb_cancel_transfer(transfer);
+		if (devc->num_transfers_used) {
+			for (size_t i = 0; i < NUM_MAX_TRANSFERS; ++i) {
+				struct libusb_transfer *transfer = devc->transfers[i];
+				if (transfer) {
+					libusb_cancel_transfer(transfer);
+				}
+			}
+		} else {
+			int freed = 0;
+			for (size_t i = 0; i < NUM_MAX_TRANSFERS; ++i) {
+				struct libusb_transfer *transfer = devc->transfers[i];
+				if (transfer) {
+					freed = 1;
+					g_free(transfer->buffer);
+					libusb_free_transfer(transfer);
+				}
+				devc->transfers[i] = NULL;
+			}
+			if (freed) {
+				sr_dbg("Freed all transfers.");
+				sr_info("Bulk in %u/%u bytes with %u transfers.", devc->samples_got_nbytes, devc->samples_need_nbytes, devc->num_transfers_completed);
 			}
 		}
-		for (size_t i = 0; i < NUM_MAX_TRANSFERS; ++i) {
-			libusb_handle_events_timeout_completed(drvc->sr_ctx->libusb_ctx, &(struct timeval){0, 0}, NULL);
-			struct libusb_transfer *transfer = devc->transfers[i];
-			if (transfer) {
-				g_free(transfer->buffer);
-				libusb_free_transfer(transfer);
+
+		if (devc->raw_data_queue == NULL) {
+			if (devc->raw_data_handle_thread) {
+				g_thread_join(devc->raw_data_handle_thread);
+				devc->raw_data_handle_thread == NULL;
 			}
-			devc->transfers[i] = NULL;
+			sr_session_source_remove(sdi->session, -1 * (size_t)drvc->sr_ctx->libusb_ctx);
 		}
-
-		sr_dbg("Freed all transfers.");
-		sr_info("Bulk in %u/%u bytes with %u transfers.", devc->samples_got_nbytes, devc->samples_need_nbytes, devc->num_transfers_completed);
-
-		sr_session_source_remove(sdi->session, -1 * (size_t)drvc->sr_ctx->libusb_ctx);
-		g_thread_join(devc->raw_data_handle_thread);
 	}
 
 	libusb_handle_events_timeout_completed(drvc->sr_ctx->libusb_ctx, &(struct timeval){0, 0}, NULL);
@@ -198,7 +201,9 @@ static gpointer raw_data_handle_thread_func(gpointer user_data)
 				break;
 			GByteArray *array = g_async_queue_try_pop(devc->raw_data_queue);
 			if (array != NULL) {
-				devc->model->submit_raw_data(array->data, array->len, sdi);
+				if (devc->trigger_fired) {
+					devc->model->submit_raw_data(array->data, array->len, sdi);
+				}
 				g_byte_array_unref(array);
 			}
 		} while (devc->acq_aborted);
@@ -307,7 +312,19 @@ SR_PRIV int sipeed_slogic_acquisition_start(const struct sr_dev_inst *sdi)
 	devc->raw_data_queue = g_async_queue_new();
 	devc->raw_data_handle_thread = g_thread_new("raw_data_handle_thread", raw_data_handle_thread_func, sdi);
 
-	sr_session_source_add(sdi->session, -1 * (size_t)drvc->sr_ctx->libusb_ctx, 0, (devc->per_transfer_duration / 2)?:1, handle_events, (void *)sdi);
+	if (!devc->raw_data_queue) {
+		sr_err("New g_async_queue failed, can't handle data anymore!");
+		return SR_ERR_MALLOC;
+	}
+
+	if (!devc->raw_data_handle_thread) {
+		sr_err("Create thread raw_data_handle failed, can't handle data anymore!");
+		if (devc->raw_data_queue) {
+			g_async_queue_unref(devc->raw_data_queue);
+			devc->raw_data_queue = NULL;
+		}
+		return SR_ERR_MALLOC;
+	}
 
 	while (devc->num_transfers_used < NUM_MAX_TRANSFERS && devc->samples_got_nbytes + devc->num_transfers_used * devc->per_transfer_nbytes < devc->samples_need_nbytes)
 	{
@@ -341,14 +358,17 @@ SR_PRIV int sipeed_slogic_acquisition_start(const struct sr_dev_inst *sdi)
 	}
 	sr_dbg("Submited %u transfers", devc->num_transfers_used);
 
+	if (!devc->num_transfers_used) {
+		return SR_ERR_IO;
+	}
+
 	std_session_send_df_header(sdi);
 	std_session_send_df_frame_begin(sdi);
 
-	if (!devc->num_transfers_used) {
-		sipeed_slogic_acquisition_stop(sdi);
-		return SR_OK;
-	}
+	sr_session_source_add(sdi->session, -1 * (size_t)drvc->sr_ctx->libusb_ctx, 0, (devc->per_transfer_duration / 2)?:1, handle_events, (void *)sdi);
 
+	// TODO: need trigger working
+	devc->trigger_fired = TRUE;
 	if ((ret = devc->model->operation.remote_run(sdi)) < 0) {
 		sr_err("Unhandled `CMD_RUN`");
 		sipeed_slogic_acquisition_stop(sdi);
@@ -368,6 +388,7 @@ SR_PRIV int sipeed_slogic_acquisition_stop(struct sr_dev_inst *sdi)
 
 	devc = sdi->priv;
 
+	devc->trigger_fired = FALSE;
 	devc->acq_aborted = 1;
 
 	return SR_OK;
