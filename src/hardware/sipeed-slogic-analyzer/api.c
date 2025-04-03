@@ -38,12 +38,11 @@ static const uint32_t devopts[] = {
 };
 
 
+static void slogic_submit_raw_data(void *data, size_t len, const struct sr_dev_inst *sdi);
 static int slogic_lite_8_remote_run(const struct sr_dev_inst *sdi);
 static int slogic_lite_8_remote_stop(const struct sr_dev_inst *sdi);
-static void slogic_lite_8_submit_raw_data(void *data, size_t len, const struct sr_dev_inst *sdi);
 static int slogic_basic_16_remote_run(const struct sr_dev_inst *sdi);
 static int slogic_basic_16_remote_stop(const struct sr_dev_inst *sdi);
-static void slogic_basic_16_submit_raw_data(void *data, size_t len, const struct sr_dev_inst *sdi);
 
 static const struct slogic_model support_models[] = {
 	{
@@ -57,7 +56,7 @@ static const struct slogic_model support_models[] = {
 			.remote_run = slogic_lite_8_remote_run,
 			.remote_stop = slogic_lite_8_remote_stop,
 		},
-		.submit_raw_data = slogic_lite_8_submit_raw_data,
+		.submit_raw_data = slogic_submit_raw_data,
 	},
 	{
 		.name = "Slogic Basic 16 U3",
@@ -70,7 +69,7 @@ static const struct slogic_model support_models[] = {
 			.remote_run = slogic_basic_16_remote_run,
 			.remote_stop = slogic_basic_16_remote_stop,
 		},
-		.submit_raw_data = slogic_basic_16_submit_raw_data,
+		.submit_raw_data = slogic_submit_raw_data,
 	},
 	{
 		.name = NULL,
@@ -463,6 +462,36 @@ SR_REGISTER_DEV_DRIVER(sipeed_slogic_analyzer_driver_info);
 static int slogic_usb_control_write(const struct sr_dev_inst *sdi, uint8_t request, uint16_t value, uint16_t index, uint8_t *data, size_t len, int timeout);
 static int slogic_usb_control_read(const struct sr_dev_inst *sdi, uint8_t request, uint16_t value, uint16_t index, uint8_t *data, size_t len, int timeout);
 
+static void slogic_submit_raw_data(void *data, size_t len, const struct sr_dev_inst *sdi) {
+	struct dev_context *devc = sdi->priv;
+
+	uint8_t *ptr = data;
+	uint64_t nCh = devc->cur_samplechannel;
+
+	if (nCh < 8) {
+		size_t nsp_in_bytes = 8 / nCh; // NOW must be 2 and 4
+		ptr = g_malloc(len * nsp_in_bytes);
+		for(size_t i=0; i<len; i+=nCh) {
+			for(size_t j=0; j<8; j++) {
+				ptr[i*nsp_in_bytes+j] = (((uint8_t *)data)[i+j/nsp_in_bytes] >> (j%nsp_in_bytes*nCh)) & ((1<<nCh)-1);
+			}
+		}
+		len *= nsp_in_bytes; // need reshape
+	}
+
+	sr_session_send(sdi, &(struct sr_datafeed_packet) {
+		.type = SR_DF_LOGIC,
+		.payload = &(struct sr_datafeed_logic) {
+			.length = len,
+			.unitsize = (nCh + 7)/8,
+			.data = ptr,
+		}
+	});
+
+	if (nCh < 8)
+		g_free(ptr);
+}
+
 /* Slogic Lite 8 start */
 #pragma pack(push, 1)
 struct cmd_start_acquisition {
@@ -498,34 +527,6 @@ static int slogic_lite_8_remote_stop(const struct sr_dev_inst *sdi) {
 	// int ret = slogic_usb_control_write(sdi, CMD_STOP, 0x0000, 0x0000, NULL, 0, 500);
 	// clear_ep(sdi);
 	// return ret;
-}
-
-static void slogic_lite_8_submit_raw_data(void *data, size_t len, const struct sr_dev_inst *sdi) {
-	struct dev_context *devc = sdi->priv;
-
-	size_t length = len * (8/devc->cur_samplechannel);
-	uint8_t *ptr = data;
-
-	if (devc->cur_samplechannel < 8) {
-		ptr = g_malloc(length);
-		for(size_t i=0; i<len; i+=devc->cur_samplechannel) {
-			for(size_t j=0; j<8; j++) {
-				ptr[i*(8/devc->cur_samplechannel)+j] = (((uint8_t *)data)[i+j/(8/devc->cur_samplechannel)] >> (j%(8/devc->cur_samplechannel) * devc->cur_samplechannel)) & ((1<<devc->cur_samplechannel)-1);
-			}
-		}
-	}
-
-	sr_session_send(sdi, &(struct sr_datafeed_packet) {
-		.type = SR_DF_LOGIC,
-		.payload = &(struct sr_datafeed_logic) {
-			.length = length,
-			.unitsize = 1,
-			.data = ptr,
-		}
-	});
-
-	if (devc->cur_samplechannel < 8)
-		g_free(ptr);
 }
 /* Slogic Lite 8 end */
 
@@ -631,23 +632,6 @@ static int slogic_basic_16_remote_run(const struct sr_dev_inst *sdi) {
 static int slogic_basic_16_remote_stop(const struct sr_dev_inst *sdi) {
 	const uint8_t cmd_rst[] = {0x02, 0x00, 0x00, 0x00};
 	return slogic_usb_control_write(sdi, SLOGIC_BASIC_16_CONTROL_OUT_REQ_REG_WRITE, SLOGIC_BASIC_16_R32_CTRL, 0x0000, ARRAY_AND_SIZE(cmd_rst), 500);
-}
-
-static void slogic_basic_16_submit_raw_data(void *data, size_t len, const struct sr_dev_inst *sdi) {
-	struct dev_context *devc = sdi->priv;
-
-	if (devc->cur_samplechannel < 8) {
-		slogic_lite_8_submit_raw_data(data, len, sdi);
-	} else {
-		sr_session_send(sdi, &(struct sr_datafeed_packet) {
-			.type = SR_DF_LOGIC,
-			.payload = &(struct sr_datafeed_logic) {
-				.length = len,
-				.unitsize = (devc->cur_samplechannel + 7)/8,
-				.data = data,
-			}
-		});
-	}
 }
 /* Slogic Basic 16 end */
 
