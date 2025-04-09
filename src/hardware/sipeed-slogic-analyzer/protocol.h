@@ -1,7 +1,7 @@
 /*
  * This file is part of the libsigrok project.
  *
- * Copyright (C) 2023 taorye <taorye@outlook.com>
+ * Copyright (C) 2023-2025 Shenzhen Sipeed Technology Co., Ltd. (深圳市矽速科技有限公司) <support@sipeed.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
