@@ -1,6 +1,8 @@
 -------------------------------------------------------------------------------
 README
--------------------------------------------------------------------------------
+---
+
+---
 
 The sigrok project aims at creating a portable, cross-platform,
 Free/Libre/Open-Source signal analysis software suite that supports various
@@ -10,9 +12,7 @@ libsigrok is a shared library written in C which provides the basic API
 for talking to hardware and reading/writing the acquired data into various
 input/output file formats.
 
-
-Status
-------
+## Status
 
 libsigrok is in a usable state and has had official tarball releases.
 
@@ -23,117 +23,142 @@ in the shared library / libtool / .so-file version numbers.
 However, there are _NO_ guarantees at all for stable APIs in git snapshots!
 Distro packagers should only use released tarballs (no git snapshots).
 
-
-Requirements
-------------
+## Requirements
 
 Requirements for the C library:
 
- - git (only needed when building from git)
- - gcc (>= 4.0) or clang
- - make
- - autoconf >= 2.63 (only needed when building from git)
- - automake >= 1.11 (only needed when building from git)
- - libtool (only needed when building from git)
- - pkg-config >= 0.22
- - libglib >= 2.32.0
- - zlib (optional, used for CRC32 calculation in STF input)
- - libzip >= 0.11
- - libtirpc (optional, used by VXI, fallback when glibc >= 2.26)
- - libserialport >= 0.1.1 (optional, used by some drivers)
- - librevisa >= 0.0.20130412 (optional, used by some drivers)
- - libusb-1.0 >= 1.0.16 (optional, used by some drivers)
- - hidapi >= 0.8.0 (optional, used for some HID based "serial cables")
- - bluez/libbluetooth >= 4.0 (optional, used for Bluetooth/BLE communication)
- - libftdi1 >= 1.0 (optional, used by some drivers)
- - libgpib (optional, used by some drivers)
- - libieee1284 (optional, used by some drivers)
- - libgio >= 2.32.0 (optional, used by some drivers)
- - nettle (optional, used by some drivers)
- - check >= 0.9.4 (optional, only needed to run unit tests)
- - doxygen (optional, only needed for the C API docs)
- - graphviz (optional, only needed for the C API docs)
+- git (only needed when building from git)
+- gcc (>= 4.0) or clang
+- make
+- autoconf >= 2.63 (only needed when building from git)
+- automake >= 1.11 (only needed when building from git)
+- libtool (only needed when building from git)
+- pkg-config >= 0.22
+- libglib >= 2.32.0
+- zlib (optional, used for CRC32 calculation in STF input)
+- libzip >= 0.11
+- libtirpc (optional, used by VXI, fallback when glibc >= 2.26)
+- libserialport >= 0.1.1 (optional, used by some drivers)
+- librevisa >= 0.0.20130412 (optional, used by some drivers)
+- libusb-1.0 >= 1.0.16 (optional, used by some drivers)
+- hidapi >= 0.8.0 (optional, used for some HID based "serial cables")
+- bluez/libbluetooth >= 4.0 (optional, used for Bluetooth/BLE communication)
+- libftdi1 >= 1.0 (optional, used by some drivers)
+- libgpib (optional, used by some drivers)
+- libieee1284 (optional, used by some drivers)
+- libgio >= 2.32.0 (optional, used by some drivers)
+- nettle (optional, used by some drivers)
+- check >= 0.9.4 (optional, only needed to run unit tests)
+- doxygen (optional, only needed for the C API docs)
+- graphviz (optional, only needed for the C API docs)
 
 Requirements for the C++ bindings:
 
- - libsigrok >= 0.4.0 (the libsigrok C library, see above)
- - A C++ compiler with C++11 support (-std=c++11 option), e.g.
-   - g++ (>= 4.8.1)
-   - clang++ (>= 3.3)
- - autoconf-archive (only needed when building from git)
- - doxygen (required for building the bindings, not only for C++ API docs!)
- - graphviz (optional, only needed for the C++ API docs)
- - Python 3 executable (development files are not needed)
- - glibmm-2.4 (>= 2.32.0) or glibmm-2.68 (>= 2.68.0)
+- libsigrok >= 0.4.0 (the libsigrok C library, see above)
+- A C++ compiler with C++11 support (-std=c++11 option), e.g.
+  - g++ (>= 4.8.1)
+  - clang++ (>= 3.3)
+- autoconf-archive (only needed when building from git)
+- doxygen (required for building the bindings, not only for C++ API docs!)
+- graphviz (optional, only needed for the C++ API docs)
+- Python 3 executable (development files are not needed)
+- glibmm-2.4 (>= 2.32.0) or glibmm-2.68 (>= 2.68.0)
 
 Requirements for the Python bindings:
 
- - libsigrokcxx >= 0.4.0 (the libsigrok C++ bindings, see above)
- - SWIG >= 2.0.0
- - Python >= 3 (including development files!)
- - Python setuptools
- - pygobject >= 3.0.0, a.k.a python-gi
- - numpy
- - doxygen (optional, only needed for the Python API docs)
- - graphviz (optional, only needed for the Python API docs)
- - doxypy (optional, only needed for the Python API docs)
+- libsigrokcxx >= 0.4.0 (the libsigrok C++ bindings, see above)
+- SWIG >= 2.0.0
+- Python >= 3 (including development files!)
+- Python setuptools
+- pygobject >= 3.0.0, a.k.a python-gi
+- numpy
+- doxygen (optional, only needed for the Python API docs)
+- graphviz (optional, only needed for the Python API docs)
+- doxypy (optional, only needed for the Python API docs)
 
 Requirements for the Ruby bindings:
 
- - libsigrokcxx >= 0.4.0 (the libsigrok C++ bindings, see above)
- - Ruby >= 2.5.0 (including development files!)
- - SWIG >= 3.0.8
- - YARD (optional, only needed for the Ruby API docs)
+- libsigrokcxx >= 0.4.0 (the libsigrok C++ bindings, see above)
+- Ruby >= 2.5.0 (including development files!)
+- SWIG >= 3.0.8
+- YARD (optional, only needed for the Ruby API docs)
 
 Requirements for the Java bindings:
 
- - libsigrokcxx >= 0.4.0 (the libsigrok C++ bindings, see above)
- - SWIG >= 2.0.0
- - Java JDK (for JNI includes and the javac/jar binaries)
- - doxygen (optional, only needed for the Java API docs)
- - graphviz (optional, only needed for the Java API docs)
+- libsigrokcxx >= 0.4.0 (the libsigrok C++ bindings, see above)
+- SWIG >= 2.0.0
+- Java JDK (for JNI includes and the javac/jar binaries)
+- doxygen (optional, only needed for the Java API docs)
+- graphviz (optional, only needed for the Java API docs)
 
-
-Building and installing
------------------------
+## Building and installing
 
 In order to get the libsigrok source code and build it, run:
 
- $ git clone git://sigrok.org/libsigrok
- $ cd libsigrok
- $ ./autogen.sh
- $ ./configure
- $ make
+$ git clone git://sigrok.org/libsigrok
+$ cd libsigrok
+$ ./autogen.sh
+$ ./configure
+$ make
 
 For installing libsigrok:
 
- $ make install
+$ make install
 
 See INSTALL or the following wiki page for more (OS-specific) instructions:
 
- http://sigrok.org/wiki/Building
+http://sigrok.org/wiki/Building
 
 Please also check the following wiki page in case you encounter any issues:
 
- http://sigrok.org/wiki/Building#FAQ
+http://sigrok.org/wiki/Building#FAQ
 
+## Windows (MSYS2/MinGW-w64)
 
-Device-specific issues
-----------------------
+The supported Windows build path is MSYS2 with a MinGW-w64 shell. Install the
+matching toolchain for your shell (for example mingw64 or ucrt64), plus the
+Autotools and pkg-config stack and the runtime libraries you want enabled.
+
+Typical packages are:
+
+- autoconf
+- automake
+- libtool
+- pkgconf
+- make
+- git
+- gcc and g++ from the matching mingw-w64 toolchain
+- glib2
+- libzip
+- libusb
+- zlib
+- hidapi
+- libftdi
+- libserialport
+
+Then build from the MSYS2 MinGW shell that matches your target:
+$ msys2
+$ ./autogen.sh
+$ ./configure --disable-java --disable-ruby
+$ make
+$ make install
+
+The configure script will select the Windows-specific code paths automatically,
+including the MinGW-specific libusb and Winsock settings. If you need USB
+device access at runtime, assign the device to a WinUSB/libusb-compatible
+driver first; see README.devices for the Windows driver notes.
+
+## Device-specific issues
 
 Please check README.devices for some notes and hints about device- or
 driver-specific issues to be aware of.
 
-
-Firmware
---------
+## Firmware
 
 Some devices supported by libsigrok need a firmware to be uploaded before the
 device can be used. See README.devices for details.
 
-
-Copyright and license
----------------------
+## Copyright and license
 
 libsigrok is licensed under the terms of the GNU General Public License
 (GPL), version 3 or later.
@@ -144,21 +169,14 @@ the library as a whole is licensed under the terms of the GPLv3+.
 
 Please see the individual source files for the full list of copyright holders.
 
+## Mailing list
 
-Mailing list
-------------
+https://lists.sourceforge.net/lists/listinfo/sigrok-devel
 
- https://lists.sourceforge.net/lists/listinfo/sigrok-devel
-
-
-IRC
----
+## IRC
 
 You can find the sigrok developers in the #sigrok IRC channel on Libera.Chat.
 
+## Website
 
-Website
--------
-
- http://sigrok.org/wiki/Libsigrok
-
+http://sigrok.org/wiki/Libsigrok
