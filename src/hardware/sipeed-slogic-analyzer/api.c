@@ -559,7 +559,7 @@ int config_channel_set(const struct sr_dev_inst *sdi, struct sr_channel *ch, uns
 		}
 	}
 
-	if(new_samplechannel > devc->cur_samplechannel){
+	if(new_samplechannel != devc->cur_samplechannel){
 		devc->cur_samplechannel = new_samplechannel;
 		devc->limit_samplerate = devc->model->limit_samplerate_table[
 				std_i32_idx(g_variant_new_int32(devc->cur_samplechannel),
@@ -590,11 +590,11 @@ static int config_list(uint32_t key, GVariant **data,
 				      devopts);
 		break;
 	case SR_CONF_SAMPLERATE:
+		/* Always return the full samplerate table. config_set
+		 * enforces the per-channel-count limit at selection time. */
 		*data = std_gvar_samplerates(
 			devc->model->samplerate_table,
-			1 + std_u64_idx(g_variant_new_uint64(
-						devc->limit_samplerate),
-					devc->model->samplerate_table, devc->model->samplerate_table_size));
+			devc->model->samplerate_table_size);
 		if (NULL == devc->model)
 			ret = SR_ERR_ARG;
 		break;
