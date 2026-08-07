@@ -33,7 +33,7 @@ static const uint32_t drvopts[] = {
 };
 
 static const uint32_t devopts[] = {
-	SR_CONF_CONTINUOUS,
+	SR_CONF_CONTINUOUS | SR_CONF_GET | SR_CONF_SET,
 	SR_CONF_LIMIT_SAMPLES | SR_CONF_GET | SR_CONF_SET,
 	SR_CONF_PATTERN_MODE | SR_CONF_GET | SR_CONF_SET | SR_CONF_LIST,
 	SR_CONF_SAMPLERATE | SR_CONF_GET | SR_CONF_SET | SR_CONF_LIST,
@@ -275,6 +275,7 @@ static GSList *scan(struct sr_dev_driver *di, GSList *options)
 				devc->cur_samplechannel =
 					devc->limit_samplechannel;
 				devc->cur_samplerate = devc->limit_samplerate;
+				devc->continuous_mode = TRUE;
 				devc->cur_pattern_mode_idx = PATTERN_MODE_NORMAL;
 				devc->voltage_threshold[0] =
 					devc->voltage_threshold[1] = 1.7000000000000004;
@@ -428,6 +429,9 @@ static int config_get(uint32_t key, GVariant **data,
 	case SR_CONF_LIMIT_SAMPLES:
 		*data = g_variant_new_uint64(devc->cur_limit_samples);
 		break;
+	case SR_CONF_CONTINUOUS:
+		*data = g_variant_new_boolean(devc->continuous_mode);
+		break;
 	case SR_CONF_VOLTAGE_THRESHOLD:
 		*data = std_gvar_tuple_double(devc->voltage_threshold[0],
 					      devc->voltage_threshold[1]);
@@ -523,6 +527,9 @@ static int config_set(uint32_t key, GVariant *data,
 		break;
 	case SR_CONF_LIMIT_SAMPLES:
 		devc->cur_limit_samples = g_variant_get_uint64(data);
+		break;
+	case SR_CONF_CONTINUOUS:
+		devc->continuous_mode = g_variant_get_boolean(data);
 		break;
 	case SR_CONF_VOLTAGE_THRESHOLD:
 		g_variant_get(data, "(dd)", &devc->voltage_threshold[0],

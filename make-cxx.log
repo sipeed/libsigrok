@@ -1,0 +1,950 @@
+make  all-am
+  GEN      doxy/xml/index.xml
+  CC       src/backend.lo
+  CC       src/binary_helpers.lo
+  CC       src/conversion.lo
+  CC       src/crc.lo
+  CC       src/device.lo
+  CC       src/session.lo
+  CC       src/session_file.lo
+  CC       src/session_driver.lo
+  CC       src/trigger.lo
+  CC       src/hwdriver.lo
+  CC       src/soft-trigger.lo
+  CC       src/analog.lo
+  CC       src/fallback.lo
+  CC       src/resource.lo
+  CC       src/strutil.lo
+  CC       src/log.lo
+  CC       src/version.lo
+  CC       src/error.lo
+  CC       src/std.lo
+  CC       src/sw_limits.lo
+  CC       src/tcp.lo
+  CC       src/input/input.lo
+src/tcp.c: In function 'sr_tcp_write_bytes':
+src/tcp.c:321:33: warning: pointer targets in passing argument 2 of 'send' differ in signedness [-Wpointer-sign]
+  321 |         rc = send(tcp->sock_fd, data, dlen, 0);
+      |                                 ^~~~
+      |                                 |
+      |                                 const uint8_t * {aka const unsigned char *}
+In file included from src/tcp.c:30:
+D:/Apps/Scoop/apps/msys2/2026-03-22/mingw64/include/winsock2.h:1033:60: note: expected 'const char *' but argument is of type 'const uint8_t *' {aka 'const unsigned char *'}
+ 1033 |   WINSOCK_API_LINKAGE int WSAAPI send(SOCKET s,const char *buf,int len,int flags);
+      |                                                ~~~~~~~~~~~~^~~
+src/tcp.c: In function 'sr_tcp_read_bytes':
+src/tcp.c:362:33: warning: pointer targets in passing argument 2 of 'recv' differ in signedness [-Wpointer-sign]
+  362 |         rc = recv(tcp->sock_fd, data, dlen, 0);
+      |                                 ^~~~
+      |                                 |
+      |                                 uint8_t * {aka unsigned char *}
+D:/Apps/Scoop/apps/msys2/2026-03-22/mingw64/include/winsock2.h:1028:54: note: expected 'char *' but argument is of type 'uint8_t *' {aka 'unsigned char *'}
+ 1028 |   WINSOCK_API_LINKAGE int WSAAPI recv(SOCKET s,char *buf,int len,int flags);
+      |                                                ~~~~~~^~~
+  CC       src/input/feed_queue.lo
+  CC       src/input/binary.lo
+  CC       src/input/chronovu_la8.lo
+  CC       src/input/csv.lo
+  CC       src/input/logicport.lo
+  CC       src/input/protocoldata.lo
+  CC       src/input/raw_analog.lo
+  CC       src/input/saleae.lo
+  CC       src/input/trace32_ad.lo
+  CC       src/input/vcd.lo
+  CC       src/input/wav.lo
+  CC       src/input/isf.lo
+  CC       src/input/null.lo
+  CC       src/input/stf.lo
+  CC       src/output/output.lo
+  CC       src/output/analog.lo
+  CC       src/output/ascii.lo
+  CC       src/output/bits.lo
+  CC       src/output/binary.lo
+  CC       src/output/csv.lo
+  CC       src/output/chronovu_la8.lo
+  CC       src/output/wav.lo
+  CC       src/output/hex.lo
+  CC       src/output/ols.lo
+  CC       src/output/srzip.lo
+  CC       src/output/vcd.lo
+  CC       src/output/wavedrom.lo
+  CC       src/output/null.lo
+  CC       src/transform/transform.lo
+  CC       src/transform/nop.lo
+  CC       src/transform/scale.lo
+  CC       src/transform/invert.lo
+  CC       src/scpi/scpi.lo
+  CC       src/scpi/scpi_tcp.lo
+  CC       src/dmm/mm38xr.lo
+  CC       src/dmm/ms2115b.lo
+  CC       src/dmm/ms8250d.lo
+  CC       src/dmm/rs9lcd.lo
+  CC       src/dmm/ut372.lo
+  CC       src/dmm/ut71x.lo
+  CC       src/dmm/vc870.lo
+  CC       src/dmm/vc96.lo
+  CC       src/lcr/es51919.lo
+  CC       src/lcr/vc4080.lo
+  CC       src/scale/kern.lo
+  CC       src/drivers.lo
+  CC       src/hardware/agilent-dmm/protocol.lo
+  CC       src/hardware/agilent-dmm/api.lo
+  CC       src/hardware/appa-55ii/protocol.lo
+  CC       src/hardware/appa-55ii/api.lo
+  CC       src/hardware/arachnid-labs-re-load-pro/protocol.lo
+  CC       src/hardware/arachnid-labs-re-load-pro/api.lo
+  CC       src/hardware/asix-omega-rtm-cli/protocol.lo
+  CC       src/hardware/asix-omega-rtm-cli/api.lo
+  CC       src/hardware/asix-sigma/protocol.lo
+  CC       src/hardware/asix-sigma/api.lo
+src/hardware/asix-sigma/protocol.c: In function 'sigma_build_basic_trigger':
+src/hardware/asix-sigma/protocol.c:2372:22: warning: array subscript 2 is above array bounds of 'uint16_t[2]' {aka 'short unsigned int[2]'} [-Warray-bounds=]
+ 2372 |                 masks[condidx++] = mask;
+      |                 ~~~~~^~~~~~~~~~~
+src/hardware/asix-sigma/protocol.c:2342:18: note: while referencing 'masks'
+ 2342 |         uint16_t masks[2];
+      |                  ^~~~~
+  CC       src/hardware/atorch/protocol.lo
+  CC       src/hardware/atorch/api.lo
+  CC       src/hardware/atten-pps3xxx/protocol.lo
+  CC       src/hardware/atten-pps3xxx/api.lo
+  CC       src/hardware/bkprecision-1856d/protocol.lo
+  CC       src/hardware/bkprecision-1856d/api.lo
+  CC       src/hardware/cem-dt-885x/protocol.lo
+  CC       src/hardware/cem-dt-885x/api.lo
+  CC       src/hardware/center-3xx/protocol.lo
+  CC       src/hardware/center-3xx/api.lo
+  CC       src/hardware/chronovu-la/protocol.lo
+  CC       src/hardware/chronovu-la/api.lo
+  CC       src/hardware/colead-slm/protocol.lo
+  CC       src/hardware/colead-slm/api.lo
+  CC       src/hardware/conrad-digi-35-cpu/protocol.lo
+  CC       src/hardware/conrad-digi-35-cpu/api.lo
+  CC       src/hardware/dcttech-usbrelay/protocol.lo
+  CC       src/hardware/dcttech-usbrelay/api.lo
+  CC       src/hardware/demo/protocol.lo
+  CC       src/hardware/demo/api.lo
+  CC       src/hardware/devantech-eth008/protocol.lo
+  CC       src/hardware/devantech-eth008/api.lo
+  CC       src/hardware/dreamsourcelab-dslogic/protocol.lo
+  CC       src/hardware/dreamsourcelab-dslogic/api.lo
+  CC       src/hardware/fluke-45/protocol.lo
+  CC       src/hardware/fluke-45/api.lo
+  CC       src/hardware/fluke-dmm/protocol.lo
+  CC       src/hardware/fluke-dmm/fluke-18x.lo
+  CC       src/hardware/fluke-dmm/fluke-190.lo
+  CC       src/hardware/fluke-dmm/fluke-28x.lo
+  CC       src/hardware/fluke-dmm/api.lo
+  CC       src/hardware/ftdi-la/protocol.lo
+  CC       src/hardware/ftdi-la/api.lo
+  CC       src/hardware/fx2lafw/protocol.lo
+  CC       src/hardware/fx2lafw/api.lo
+  CC       src/hardware/gmc-mh-1x-2x/protocol.lo
+  CC       src/hardware/gmc-mh-1x-2x/api.lo
+  CC       src/hardware/greatfet/protocol.lo
+  CC       src/hardware/greatfet/api.lo
+  CC       src/hardware/gwinstek-gds-800/protocol.lo
+  CC       src/hardware/gwinstek-gds-800/api.lo
+  CC       src/hardware/gwinstek-gpd/protocol.lo
+  CC       src/hardware/gwinstek-gpd/api.lo
+  CC       src/hardware/gwinstek-psp/protocol.lo
+  CC       src/hardware/gwinstek-psp/api.lo
+  CC       src/hardware/hameg-hmo/protocol.lo
+  CC       src/hardware/hameg-hmo/api.lo
+  CC       src/hardware/hantek-4032l/protocol.lo
+  CC       src/hardware/hantek-4032l/api.lo
+  CC       src/hardware/hantek-6xxx/protocol.lo
+  CC       src/hardware/hantek-6xxx/api.lo
+  CC       src/hardware/hantek-dso/protocol.lo
+  CC       src/hardware/hantek-dso/api.lo
+  CC       src/hardware/hp-3457a/protocol.lo
+  CC       src/hardware/hp-3457a/api.lo
+  CC       src/hardware/hp-59306a/protocol.lo
+  CC       src/hardware/hp-59306a/api.lo
+  CC       src/hardware/icstation-usbrelay/protocol.lo
+  CC       src/hardware/icstation-usbrelay/api.lo
+  CC       src/hardware/ikalogic-scanalogic2/protocol.lo
+  CC       src/hardware/ikalogic-scanalogic2/api.lo
+  CC       src/hardware/ikalogic-scanaplus/protocol.lo
+  CC       src/hardware/ikalogic-scanaplus/api.lo
+  CC       src/hardware/ipdbg-la/protocol.lo
+  CC       src/hardware/ipdbg-la/api.lo
+  CC       src/hardware/itech-it8500/protocol.lo
+  CC       src/hardware/itech-it8500/api.lo
+  CC       src/hardware/juntek-jds6600/protocol.lo
+  CC       src/hardware/juntek-jds6600/api.lo
+  CC       src/hardware/kecheng-kc-330b/protocol.lo
+  CC       src/hardware/kecheng-kc-330b/api.lo
+  CC       src/hardware/kern-scale/protocol.lo
+  CC       src/hardware/kern-scale/api.lo
+  CC       src/hardware/kingst-la2016/protocol.lo
+  CC       src/hardware/kingst-la2016/api.lo
+  CC       src/hardware/korad-kaxxxxp/protocol.lo
+  CC       src/hardware/korad-kaxxxxp/api.lo
+  CC       src/hardware/lascar-el-usb/protocol.lo
+  CC       src/hardware/lascar-el-usb/api.lo
+  CC       src/hardware/lecroy-logicstudio/protocol.lo
+  CC       src/hardware/lecroy-logicstudio/api.lo
+  CC       src/hardware/lecroy-xstream/protocol.lo
+  CC       src/hardware/lecroy-xstream/api.lo
+  CC       src/hardware/link-mso19/protocol.lo
+  CC       src/hardware/link-mso19/api.lo
+  CC       src/hardware/manson-hcs-3xxx/protocol.lo
+  CC       src/hardware/manson-hcs-3xxx/api.lo
+  CC       src/hardware/mastech-ms6514/protocol.lo
+  CC       src/hardware/mastech-ms6514/api.lo
+  CC       src/hardware/maynuo-m97/protocol.lo
+  CC       src/hardware/maynuo-m97/api.lo
+  CC       src/hardware/microchip-pickit2/protocol.lo
+  CC       src/hardware/microchip-pickit2/api.lo
+  CC       src/hardware/mic-985xx/protocol.lo
+  CC       src/hardware/mic-985xx/api.lo
+  CC       src/hardware/motech-lps-30x/protocol.lo
+  CC       src/hardware/motech-lps-30x/api.lo
+  CC       src/hardware/norma-dmm/protocol.lo
+  CC       src/hardware/norma-dmm/api.lo
+  CC       src/hardware/openbench-logic-sniffer/protocol.lo
+  CC       src/hardware/openbench-logic-sniffer/api.lo
+  CC       src/hardware/pce-322a/protocol.lo
+  CC       src/hardware/pce-322a/api.lo
+  CC       src/hardware/pipistrello-ols/protocol.lo
+  CC       src/hardware/pipistrello-ols/api.lo
+  CC       src/hardware/raspberrypi-pico/protocol.lo
+  CC       src/hardware/raspberrypi-pico/api.lo
+In file included from src/hardware/raspberrypi-pico/protocol.c:32:
+src/hardware/raspberrypi-pico/protocol.c: In function 'process_D4':
+src/hardware/raspberrypi-pico/protocol.h:31:20: warning: format '%lu' expects argument of type 'long unsigned int', but argument 6 has type 'uint64_t' {aka 'long long unsigned int'} [-Wformat=]
+   31 | #define LOG_PREFIX "srpico"
+      |                    ^~~~~~~~
+./src/libsigrok-internal.h:1698:45: note: in expansion of macro 'LOG_PREFIX'
+ 1698 | #define sr_info(...)    sr_log(SR_LOG_INFO, LOG_PREFIX ": " __VA_ARGS__)
+      |                                             ^~~~~~~~~~
+src/hardware/raspberrypi-pico/protocol.c:174:33: note: in expansion of macro 'sr_info'
+  174 |                                 sr_info("D4 Data stream stops with cbyte %d char %c rdidx %d cnt %lu",
+      |                                 ^~~~~~~
+src/hardware/raspberrypi-pico/protocol.h:31:20: warning: format '%lu' expects argument of type 'long unsigned int', but argument 6 has type 'uint64_t' {aka 'long long unsigned int'} [-Wformat=]
+   31 | #define LOG_PREFIX "srpico"
+      |                    ^~~~~~~~
+./src/libsigrok-internal.h:1700:45: note: in expansion of macro 'LOG_PREFIX'
+ 1700 | #define sr_err(...)     sr_log(SR_LOG_ERR,  LOG_PREFIX ": " __VA_ARGS__)
+      |                                             ^~~~~~~~~~
+src/hardware/raspberrypi-pico/protocol.c:178:33: note: in expansion of macro 'sr_err'
+  178 |                                 sr_err("D4 Data stream aborts with cbyte %d char %c rdidx %d cnt %lu",
+      |                                 ^~~~~~
+src/hardware/raspberrypi-pico/protocol.c: In function 'process_slice':
+src/hardware/raspberrypi-pico/protocol.h:31:20: warning: format '%lu' expects argument of type 'long unsigned int', but argument 7 has type 'uint64_t' {aka 'long long unsigned int'} [-Wformat=]
+   31 | #define LOG_PREFIX "srpico"
+      |                    ^~~~~~~~
+./src/libsigrok-internal.h:1698:45: note: in expansion of macro 'LOG_PREFIX'
+ 1698 | #define sr_info(...)    sr_log(SR_LOG_INFO, LOG_PREFIX ": " __VA_ARGS__)
+      |                                             ^~~~~~~~~~
+src/hardware/raspberrypi-pico/protocol.c:240:25: note: in expansion of macro 'sr_info'
+  240 |                         sr_info("Data stream stops with cbyte %d char %c rdidx %d sbytes %d cnt %lu",
+      |                         ^~~~~~~
+src/hardware/raspberrypi-pico/protocol.h:31:20: warning: format '%lu' expects argument of type 'long unsigned int', but argument 7 has type 'uint64_t' {aka 'long long unsigned int'} [-Wformat=]
+   31 | #define LOG_PREFIX "srpico"
+      |                    ^~~~~~~~
+./src/libsigrok-internal.h:1700:45: note: in expansion of macro 'LOG_PREFIX'
+ 1700 | #define sr_err(...)     sr_log(SR_LOG_ERR,  LOG_PREFIX ": " __VA_ARGS__)
+      |                                             ^~~~~~~~~~
+src/hardware/raspberrypi-pico/protocol.c:244:25: note: in expansion of macro 'sr_err'
+  244 |                         sr_err("Data stream aborts with cbyte %d char %c rdidx %d sbytes %d cnt %lu",
+      |                         ^~~~~~
+src/hardware/raspberrypi-pico/protocol.c: In function 'process_group':
+src/hardware/raspberrypi-pico/protocol.h:31:20: warning: format '%lu' expects argument of type 'long unsigned int', but argument 3 has type 'size_t' {aka 'long long unsigned int'} [-Wformat=]
+   31 | #define LOG_PREFIX "srpico"
+      |                    ^~~~~~~~
+./src/libsigrok-internal.h:1696:45: note: in expansion of macro 'LOG_PREFIX'
+ 1696 | #define sr_spew(...)    sr_log(SR_LOG_SPEW, LOG_PREFIX ": " __VA_ARGS__)
+      |                                             ^~~~~~~~~~
+src/hardware/raspberrypi-pico/protocol.c:485:25: note: in expansion of macro 'sr_spew'
+  485 |                         sr_spew("Process_group sending %lu post trig samples dsb %d",
+      |                         ^~~~~~~
+src/hardware/raspberrypi-pico/protocol.h:31:20: warning: format '%lu' expects argument of type 'long unsigned int', but argument 3 has type 'size_t' {aka 'long long unsigned int'} [-Wformat=]
+   31 | #define LOG_PREFIX "srpico"
+      |                    ^~~~~~~~
+./src/libsigrok-internal.h:1697:45: note: in expansion of macro 'LOG_PREFIX'
+ 1697 | #define sr_dbg(...)     sr_log(SR_LOG_DBG,  LOG_PREFIX ": " __VA_ARGS__)
+      |                                             ^~~~~~~~~~
+src/hardware/raspberrypi-pico/protocol.c:546:33: note: in expansion of macro 'sr_dbg'
+  546 |                                 sr_dbg("Sending post trigger logical remainder of %lu",
+      |                                 ^~~~~~
+src/hardware/raspberrypi-pico/protocol.c: In function 'raspberrypi_pico_receive':
+src/hardware/raspberrypi-pico/protocol.h:31:20: warning: format '%lu' expects argument of type 'long unsigned int', but argument 3 has type 'uint64_t' {aka 'long long unsigned int'} [-Wformat=]
+   31 | #define LOG_PREFIX "srpico"
+      |                    ^~~~~~~~
+./src/libsigrok-internal.h:1697:45: note: in expansion of macro 'LOG_PREFIX'
+ 1697 | #define sr_dbg(...)     sr_log(SR_LOG_DBG,  LOG_PREFIX ": " __VA_ARGS__)
+      |                                             ^~~~~~~~~~
+src/hardware/raspberrypi-pico/protocol.c:782:33: note: in expansion of macro 'sr_dbg'
+  782 |                                 sr_dbg("Byte_cnt check device cnt %lu host cnt %lu",
+      |                                 ^~~~~~
+src/hardware/raspberrypi-pico/protocol.h:31:20: warning: format '%lu' expects argument of type 'long unsigned int', but argument 4 has type 'uint64_t' {aka 'long long unsigned int'} [-Wformat=]
+   31 | #define LOG_PREFIX "srpico"
+      |                    ^~~~~~~~
+./src/libsigrok-internal.h:1697:45: note: in expansion of macro 'LOG_PREFIX'
+ 1697 | #define sr_dbg(...)     sr_log(SR_LOG_DBG,  LOG_PREFIX ": " __VA_ARGS__)
+      |                                             ^~~~~~~~~~
+src/hardware/raspberrypi-pico/protocol.c:782:33: note: in expansion of macro 'sr_dbg'
+  782 |                                 sr_dbg("Byte_cnt check device cnt %lu host cnt %lu",
+      |                                 ^~~~~~
+src/hardware/raspberrypi-pico/protocol.h:31:20: warning: format '%lu' expects argument of type 'long unsigned int', but argument 3 has type 'uint64_t' {aka 'long long unsigned int'} [-Wformat=]
+   31 | #define LOG_PREFIX "srpico"
+      |                    ^~~~~~~~
+./src/libsigrok-internal.h:1700:45: note: in expansion of macro 'LOG_PREFIX'
+ 1700 | #define sr_err(...)     sr_log(SR_LOG_ERR,  LOG_PREFIX ": " __VA_ARGS__)
+      |                                             ^~~~~~~~~~
+src/hardware/raspberrypi-pico/protocol.c:785:41: note: in expansion of macro 'sr_err'
+  785 |                                         sr_err("ERROR: received %lu and counted %lu bytecnts " \
+      |                                         ^~~~~~
+src/hardware/raspberrypi-pico/protocol.h:31:20: warning: format '%lu' expects argument of type 'long unsigned int', but argument 4 has type 'uint64_t' {aka 'long long unsigned int'} [-Wformat=]
+   31 | #define LOG_PREFIX "srpico"
+      |                    ^~~~~~~~
+./src/libsigrok-internal.h:1700:45: note: in expansion of macro 'LOG_PREFIX'
+ 1700 | #define sr_err(...)     sr_log(SR_LOG_ERR,  LOG_PREFIX ": " __VA_ARGS__)
+      |                                             ^~~~~~~~~~
+src/hardware/raspberrypi-pico/protocol.c:785:41: note: in expansion of macro 'sr_err'
+  785 |                                         sr_err("ERROR: received %lu and counted %lu bytecnts " \
+      |                                         ^~~~~~
+src/hardware/raspberrypi-pico/protocol.h:31:20: warning: format '%lu' expects argument of type 'long unsigned int', but argument 4 has type 'uint64_t' {aka 'long long unsigned int'} [-Wformat=]
+   31 | #define LOG_PREFIX "srpico"
+      |                    ^~~~~~~~
+./src/libsigrok-internal.h:1697:45: note: in expansion of macro 'LOG_PREFIX'
+ 1697 | #define sr_dbg(...)     sr_log(SR_LOG_DBG,  LOG_PREFIX ": " __VA_ARGS__)
+      |                                             ^~~~~~~~~~
+src/hardware/raspberrypi-pico/protocol.c:809:17: note: in expansion of macro 'sr_dbg'
+  809 |                 sr_dbg("Ending: sent %u of limit %lu samples byte_cnt %lu",
+      |                 ^~~~~~
+src/hardware/raspberrypi-pico/protocol.h:31:20: warning: format '%lu' expects argument of type 'long unsigned int', but argument 5 has type 'uint64_t' {aka 'long long unsigned int'} [-Wformat=]
+   31 | #define LOG_PREFIX "srpico"
+      |                    ^~~~~~~~
+./src/libsigrok-internal.h:1697:45: note: in expansion of macro 'LOG_PREFIX'
+ 1697 | #define sr_dbg(...)     sr_log(SR_LOG_DBG,  LOG_PREFIX ": " __VA_ARGS__)
+      |                                             ^~~~~~~~~~
+src/hardware/raspberrypi-pico/protocol.c:809:17: note: in expansion of macro 'sr_dbg'
+  809 |                 sr_dbg("Ending: sent %u of limit %lu samples byte_cnt %lu",
+      |                 ^~~~~~
+src/hardware/raspberrypi-pico/protocol.h:31:20: warning: format '%lu' expects argument of type 'long unsigned int', but argument 4 has type 'uint64_t' {aka 'long long unsigned int'} [-Wformat=]
+   31 | #define LOG_PREFIX "srpico"
+      |                    ^~~~~~~~
+./src/libsigrok-internal.h:1696:45: note: in expansion of macro 'LOG_PREFIX'
+ 1696 | #define sr_spew(...)    sr_log(SR_LOG_SPEW, LOG_PREFIX ": " __VA_ARGS__)
+      |                                             ^~~~~~~~~~
+src/hardware/raspberrypi-pico/protocol.c:814:9: note: in expansion of macro 'sr_spew'
+  814 |         sr_spew("Receive function done: sent %u limit %lu wrptr %u len %d",
+      |         ^~~~~~~
+  CC       src/hardware/rdtech-dps/protocol.lo
+In file included from src/hardware/raspberrypi-pico/api.c:29:
+src/hardware/raspberrypi-pico/api.c: In function 'config_set':
+src/hardware/raspberrypi-pico/protocol.h:31:20: warning: format '%lu' expects argument of type 'long unsigned int', but argument 3 has type 'uint64_t' {aka 'long long unsigned int'} [-Wformat=]
+   31 | #define LOG_PREFIX "srpico"
+      |                    ^~~~~~~~
+./src/libsigrok-internal.h:1697:45: note: in expansion of macro 'LOG_PREFIX'
+ 1697 | #define sr_dbg(...)     sr_log(SR_LOG_DBG,  LOG_PREFIX ": " __VA_ARGS__)
+      |                                             ^~~~~~~~~~
+src/hardware/raspberrypi-pico/api.c:358:17: note: in expansion of macro 'sr_dbg'
+  358 |                 sr_dbg("config_set sr %lu\n", devc->sample_rate);
+      |                 ^~~~~~
+src/hardware/raspberrypi-pico/api.c: In function 'config_get':
+src/hardware/raspberrypi-pico/protocol.h:31:20: warning: format '%lu' expects argument of type 'long unsigned int', but argument 3 has type 'uint64_t' {aka 'long long unsigned int'} [-Wformat=]
+   31 | #define LOG_PREFIX "srpico"
+      |                    ^~~~~~~~
+./src/libsigrok-internal.h:1696:45: note: in expansion of macro 'LOG_PREFIX'
+ 1696 | #define sr_spew(...)    sr_log(SR_LOG_SPEW, LOG_PREFIX ": " __VA_ARGS__)
+      |                                             ^~~~~~~~~~
+src/hardware/raspberrypi-pico/api.c:401:17: note: in expansion of macro 'sr_spew'
+  401 |                 sr_spew("config_get limit_samples of %lu", devc->limit_samples);
+      |                 ^~~~~~~
+src/hardware/raspberrypi-pico/api.c: In function 'dev_acquisition_start':
+src/hardware/raspberrypi-pico/protocol.h:31:20: warning: format '%lu' expects argument of type 'long unsigned int', but argument 3 has type 'uint64_t' {aka 'long long unsigned int'} [-Wformat=]
+   31 | #define LOG_PREFIX "srpico"
+      |                    ^~~~~~~~
+./src/libsigrok-internal.h:1699:45: note: in expansion of macro 'LOG_PREFIX'
+ 1699 | #define sr_warn(...)    sr_log(SR_LOG_WARN, LOG_PREFIX ": " __VA_ARGS__)
+      |                                             ^~~~~~~~~~
+src/hardware/raspberrypi-pico/api.c:581:25: note: in expansion of macro 'sr_warn'
+  581 |                         sr_warn("WARN: Forcing common integer divisor sample rate of " \
+      |                         ^~~~~~~
+src/hardware/raspberrypi-pico/protocol.h:31:20: warning: format '%lu' expects argument of type 'long unsigned int', but argument 3 has type 'uint64_t' {aka 'long long unsigned int'} [-Wformat=]
+   31 | #define LOG_PREFIX "srpico"
+      |                    ^~~~~~~~
+./src/libsigrok-internal.h:1699:45: note: in expansion of macro 'LOG_PREFIX'
+ 1699 | #define sr_warn(...)    sr_log(SR_LOG_WARN, LOG_PREFIX ": " __VA_ARGS__)
+      |                                             ^~~~~~~~~~
+src/hardware/raspberrypi-pico/api.c:594:17: note: in expansion of macro 'sr_warn'
+  594 |                 sr_warn("WARN: Non integer ADC divisor of 48Mhz clock for sample " \
+      |                 ^~~~~~~
+src/hardware/raspberrypi-pico/protocol.h:31:20: warning: format '%lu' expects argument of type 'long unsigned int', but argument 3 has type 'uint64_t' {aka 'long long unsigned int'} [-Wformat=]
+   31 | #define LOG_PREFIX "srpico"
+      |                    ^~~~~~~~
+./src/libsigrok-internal.h:1699:45: note: in expansion of macro 'LOG_PREFIX'
+ 1699 | #define sr_warn(...)    sr_log(SR_LOG_WARN, LOG_PREFIX ": " __VA_ARGS__)
+      |                                             ^~~~~~~~~~
+src/hardware/raspberrypi-pico/api.c:598:17: note: in expansion of macro 'sr_warn'
+  598 |                 sr_warn("WARN: Non integer PIO divisor of 120Mhz for sample rate " \
+      |                 ^~~~~~~
+src/hardware/raspberrypi-pico/api.c:620:29: warning: format '%lu' expects argument of type 'long unsigned int', but argument 3 has type 'uint64_t' {aka 'long long unsigned int'} [-Wformat=]
+  620 |         sprintf(tmpstr, "R%lu\n", devc->sample_rate);
+      |                           ~~^     ~~~~~~~~~~~~~~~~~
+      |                             |         |
+      |                             |         uint64_t {aka long long unsigned int}
+      |                             long unsigned int
+      |                           %llu
+  CC       src/hardware/rdtech-dps/api.lo
+  CC       src/hardware/rdtech-um/protocol.lo
+  CC       src/hardware/rdtech-um/api.lo
+  CC       src/hardware/rdtech-tc/protocol.lo
+  CC       src/hardware/rdtech-tc/api.lo
+  CC       src/hardware/rigol-dg/protocol.lo
+  CC       src/hardware/rigol-dg/api.lo
+  CC       src/hardware/rigol-ds/protocol.lo
+  CC       src/hardware/rigol-ds/api.lo
+  CC       src/hardware/rohde-schwarz-sme-0x/protocol.lo
+  CC       src/hardware/rohde-schwarz-sme-0x/api.lo
+  CC       src/hardware/saleae-logic16/protocol.lo
+  CC       src/hardware/saleae-logic16/api.lo
+  CC       src/hardware/saleae-logic-pro/protocol.lo
+  CC       src/hardware/saleae-logic-pro/api.lo
+  CC       src/hardware/scpi-dmm/protocol.lo
+  CC       src/hardware/scpi-dmm/api.lo
+  CC       src/hardware/scpi-pps/protocol.lo
+  CC       src/hardware/scpi-pps/profiles.lo
+src/hardware/scpi-pps/profiles.c: In function 'ea_ps_20xx_probe_channels':
+src/hardware/scpi-pps/profiles.c:300:41: warning: unused parameter 'hw_info' [-Wunused-parameter]
+  300 |                 struct sr_scpi_hw_info *hw_info,
+      |                 ~~~~~~~~~~~~~~~~~~~~~~~~^~~~~~~
+  CC       src/hardware/scpi-pps/api.lo
+  CC       src/hardware/serial-dmm/protocol.lo
+  CC       src/hardware/serial-dmm/api.lo
+  CC       src/hardware/serial-lcr/protocol.lo
+  CC       src/hardware/serial-lcr/api.lo
+  CC       src/hardware/siglent-sdl10x0/protocol.lo
+  CC       src/hardware/siglent-sdl10x0/api.lo
+  CC       src/hardware/siglent-sds/protocol.lo
+  CC       src/hardware/siglent-sds/api.lo
+  CC       src/hardware/sipeed-slogic-analyzer/protocol.lo
+  CC       src/hardware/sipeed-slogic-analyzer/api.lo
+  CC       src/hardware/sysclk-lwla/lwla.lo
+In file included from src/hardware/sipeed-slogic-analyzer/protocol.c:23:
+src/hardware/sipeed-slogic-analyzer/protocol.c: In function 'receive_transfer':
+src/hardware/sipeed-slogic-analyzer/protocol.h:32:20: warning: format '%d' expects argument of type 'int', but argument 3 has type 'size_t' {aka 'long long unsigned int'} [-Wformat=]
+   32 | #define LOG_PREFIX "sipeed-slogic-analyzer"
+      |                    ^~~~~~~~~~~~~~~~~~~~~~~~
+./src/libsigrok-internal.h:1696:45: note: in expansion of macro 'LOG_PREFIX'
+ 1696 | #define sr_spew(...)    sr_log(SR_LOG_SPEW, LOG_PREFIX ": " __VA_ARGS__)
+      |                                             ^~~~~~~~~~
+src/hardware/sipeed-slogic-analyzer/protocol.c:47:9: note: in expansion of macro 'sr_spew'
+   47 |         sr_spew("[%d] Transfer #%d status: %d(%s).",
+      |         ^~~~~~~
+src/hardware/sipeed-slogic-analyzer/protocol.c:67:53: warning: comparison of integer expressions of different signedness: 'int' and 'size_t' {aka 'long long unsigned int'} [-Wsign-compare]
+   67 |                         if (transfer->actual_length >= drop_bytes) {
+      |                                                     ^~
+src/hardware/sipeed-slogic-analyzer/protocol.c:76:68: warning: comparison of integer expressions of different signedness: 'int' and 'uint64_t' {aka 'long long unsigned int'} [-Wsign-compare]
+   76 |                 if (devc->trigger_fired && transfer->actual_length >
+      |                                                                    ^
+src/hardware/sipeed-slogic-analyzer/protocol.h:32:20: warning: format '%u' expects argument of type 'unsigned int', but argument 3 has type 'size_t' {aka 'long long unsigned int'} [-Wformat=]
+   32 | #define LOG_PREFIX "sipeed-slogic-analyzer"
+      |                    ^~~~~~~~~~~~~~~~~~~~~~~~
+./src/libsigrok-internal.h:1697:45: note: in expansion of macro 'LOG_PREFIX'
+ 1697 | #define sr_dbg(...)     sr_log(SR_LOG_DBG,  LOG_PREFIX ": " __VA_ARGS__)
+      |                                             ^~~~~~~~~~
+src/hardware/sipeed-slogic-analyzer/protocol.c:82:17: note: in expansion of macro 'sr_dbg'
+   82 |                 sr_dbg("[%u] Got %u/%u(%.2f%%) => speed: %.2fMBps, %.2fMBps(avg), %.0fMBps(exp) => "
+      |                 ^~~~~~
+src/hardware/sipeed-slogic-analyzer/protocol.h:32:20: warning: format '%u' expects argument of type 'unsigned int', but argument 4 has type 'uint64_t' {aka 'long long unsigned int'} [-Wformat=]
+   32 | #define LOG_PREFIX "sipeed-slogic-analyzer"
+      |                    ^~~~~~~~~~~~~~~~~~~~~~~~
+./src/libsigrok-internal.h:1697:45: note: in expansion of macro 'LOG_PREFIX'
+ 1697 | #define sr_dbg(...)     sr_log(SR_LOG_DBG,  LOG_PREFIX ": " __VA_ARGS__)
+      |                                             ^~~~~~~~~~
+src/hardware/sipeed-slogic-analyzer/protocol.c:82:17: note: in expansion of macro 'sr_dbg'
+   82 |                 sr_dbg("[%u] Got %u/%u(%.2f%%) => speed: %.2fMBps, %.2fMBps(avg), %.0fMBps(exp) => "
+      |                 ^~~~~~
+src/hardware/sipeed-slogic-analyzer/protocol.h:32:20: warning: format '%u' expects argument of type 'unsigned int', but argument 5 has type 'uint64_t' {aka 'long long unsigned int'} [-Wformat=]
+   32 | #define LOG_PREFIX "sipeed-slogic-analyzer"
+      |                    ^~~~~~~~~~~~~~~~~~~~~~~~
+./src/libsigrok-internal.h:1697:45: note: in expansion of macro 'LOG_PREFIX'
+ 1697 | #define sr_dbg(...)     sr_log(SR_LOG_DBG,  LOG_PREFIX ": " __VA_ARGS__)
+      |                                             ^~~~~~~~~~
+src/hardware/sipeed-slogic-analyzer/protocol.c:82:17: note: in expansion of macro 'sr_dbg'
+   82 |                 sr_dbg("[%u] Got %u/%u(%.2f%%) => speed: %.2fMBps, %.2fMBps(avg), %.0fMBps(exp) => "
+      |                 ^~~~~~
+src/hardware/sipeed-slogic-analyzer/protocol.h:32:20: warning: format '%u' expects argument of type 'unsigned int', but argument 3 has type 'uint64_t' {aka 'long long unsigned int'} [-Wformat=]
+   32 | #define LOG_PREFIX "sipeed-slogic-analyzer"
+      |                    ^~~~~~~~~~~~~~~~~~~~~~~~
+./src/libsigrok-internal.h:1700:45: note: in expansion of macro 'LOG_PREFIX'
+ 1700 | #define sr_err(...)     sr_log(SR_LOG_ERR,  LOG_PREFIX ": " __VA_ARGS__)
+      |                                             ^~~~~~~~~~
+src/hardware/sipeed-slogic-analyzer/protocol.c:107:33: note: in expansion of macro 'sr_err'
+  107 |                                 sr_err("Failed to allocate memory: %u bytes!",
+      |                                 ^~~~~~
+src/hardware/sipeed-slogic-analyzer/protocol.h:32:20: warning: format '%u' expects argument of type 'unsigned int', but argument 7 has type 'uint64_t' {aka 'long long unsigned int'} [-Wformat=]
+   32 | #define LOG_PREFIX "sipeed-slogic-analyzer"
+      |                    ^~~~~~~~~~~~~~~~~~~~~~~~
+./src/libsigrok-internal.h:1700:45: note: in expansion of macro 'LOG_PREFIX'
+ 1700 | #define sr_err(...)     sr_log(SR_LOG_ERR,  LOG_PREFIX ": " __VA_ARGS__)
+      |                                             ^~~~~~~~~~
+src/hardware/sipeed-slogic-analyzer/protocol.c:162:17: note: in expansion of macro 'sr_err'
+  162 |                 sr_err("Timeout %.3fms!!! Rate %.2fMBps(avg)<%.0fMBps(exp) or Reach duration limit: %.3f(%u+%.1f%%), %.3f > "
+      |                 ^~~~~~
+src/hardware/sipeed-slogic-analyzer/protocol.h:32:20: warning: format '%u' expects argument of type 'unsigned int', but argument 11 has type 'long long unsigned int' [-Wformat=]
+   32 | #define LOG_PREFIX "sipeed-slogic-analyzer"
+      |                    ^~~~~~~~~~~~~~~~~~~~~~~~
+./src/libsigrok-internal.h:1700:45: note: in expansion of macro 'LOG_PREFIX'
+ 1700 | #define sr_err(...)     sr_log(SR_LOG_ERR,  LOG_PREFIX ": " __VA_ARGS__)
+      |                                             ^~~~~~~~~~
+src/hardware/sipeed-slogic-analyzer/protocol.c:162:17: note: in expansion of macro 'sr_err'
+  162 |                 sr_err("Timeout %.3fms!!! Rate %.2fMBps(avg)<%.0fMBps(exp) or Reach duration limit: %.3f(%u+%.1f%%), %.3f > "
+      |                 ^~~~~~
+src/hardware/sipeed-slogic-analyzer/protocol.c: In function 'handle_events':
+src/hardware/sipeed-slogic-analyzer/protocol.h:32:20: warning: format '%u' expects argument of type 'unsigned int', but argument 3 has type 'uint64_t' {aka 'long long unsigned int'} [-Wformat=]
+   32 | #define LOG_PREFIX "sipeed-slogic-analyzer"
+      |                    ^~~~~~~~~~~~~~~~~~~~~~~~
+./src/libsigrok-internal.h:1698:45: note: in expansion of macro 'LOG_PREFIX'
+ 1698 | #define sr_info(...)    sr_log(SR_LOG_INFO, LOG_PREFIX ": " __VA_ARGS__)
+      |                                             ^~~~~~~~~~
+src/hardware/sipeed-slogic-analyzer/protocol.c:245:17: note: in expansion of macro 'sr_info'
+  245 |                 sr_info("Bulk in %u/%u bytes with %u transfers.",
+      |                 ^~~~~~~
+src/hardware/sipeed-slogic-analyzer/protocol.h:32:20: warning: format '%u' expects argument of type 'unsigned int', but argument 4 has type 'uint64_t' {aka 'long long unsigned int'} [-Wformat=]
+   32 | #define LOG_PREFIX "sipeed-slogic-analyzer"
+      |                    ^~~~~~~~~~~~~~~~~~~~~~~~
+./src/libsigrok-internal.h:1698:45: note: in expansion of macro 'LOG_PREFIX'
+ 1698 | #define sr_info(...)    sr_log(SR_LOG_INFO, LOG_PREFIX ": " __VA_ARGS__)
+      |                                             ^~~~~~~~~~
+src/hardware/sipeed-slogic-analyzer/protocol.c:245:17: note: in expansion of macro 'sr_info'
+  245 |                 sr_info("Bulk in %u/%u bytes with %u transfers.",
+      |                 ^~~~~~~
+src/hardware/sipeed-slogic-analyzer/protocol.h:32:20: warning: format '%u' expects argument of type 'unsigned int', but argument 5 has type 'size_t' {aka 'long long unsigned int'} [-Wformat=]
+   32 | #define LOG_PREFIX "sipeed-slogic-analyzer"
+      |                    ^~~~~~~~~~~~~~~~~~~~~~~~
+./src/libsigrok-internal.h:1698:45: note: in expansion of macro 'LOG_PREFIX'
+ 1698 | #define sr_info(...)    sr_log(SR_LOG_INFO, LOG_PREFIX ": " __VA_ARGS__)
+      |                                             ^~~~~~~~~~
+src/hardware/sipeed-slogic-analyzer/protocol.c:245:17: note: in expansion of macro 'sr_info'
+  245 |                 sr_info("Bulk in %u/%u bytes with %u transfers.",
+      |                 ^~~~~~~
+src/hardware/sipeed-slogic-analyzer/protocol.c: In function 'train_bulk_in_transfer':
+src/hardware/sipeed-slogic-analyzer/protocol.h:32:20: warning: format '%u' expects argument of type 'unsigned int', but argument 3 has type 'uint64_t' {aka 'long long unsigned int'} [-Wformat=]
+   32 | #define LOG_PREFIX "sipeed-slogic-analyzer"
+      |                    ^~~~~~~~~~~~~~~~~~~~~~~~
+./src/libsigrok-internal.h:1697:45: note: in expansion of macro 'LOG_PREFIX'
+ 1697 | #define sr_dbg(...)     sr_log(SR_LOG_DBG,  LOG_PREFIX ": " __VA_ARGS__)
+      |                                             ^~~~~~~~~~
+src/hardware/sipeed-slogic-analyzer/protocol.c:300:25: note: in expansion of macro 'sr_dbg'
+  300 |                         sr_dbg("Failed to allocate memory: %u bytes! Half it.",
+      |                         ^~~~~~
+src/hardware/sipeed-slogic-analyzer/protocol.h:32:20: warning: format '%u' expects argument of type 'unsigned int', but argument 3 has type 'uint64_t' {aka 'long long unsigned int'} [-Wformat=]
+   32 | #define LOG_PREFIX "sipeed-slogic-analyzer"
+      |                    ^~~~~~~~~~~~~~~~~~~~~~~~
+./src/libsigrok-internal.h:1697:45: note: in expansion of macro 'LOG_PREFIX'
+ 1697 | #define sr_dbg(...)     sr_log(SR_LOG_DBG,  LOG_PREFIX ": " __VA_ARGS__)
+      |                                             ^~~~~~~~~~
+src/hardware/sipeed-slogic-analyzer/protocol.c:307:17: note: in expansion of macro 'sr_dbg'
+  307 |                 sr_dbg("Train: receive %u bytes per %ums...",
+      |                 ^~~~~~
+src/hardware/sipeed-slogic-analyzer/protocol.h:32:20: warning: format '%u' expects argument of type 'unsigned int', but argument 4 has type 'uint64_t' {aka 'long long unsigned int'} [-Wformat=]
+   32 | #define LOG_PREFIX "sipeed-slogic-analyzer"
+      |                    ^~~~~~~~~~~~~~~~~~~~~~~~
+./src/libsigrok-internal.h:1697:45: note: in expansion of macro 'LOG_PREFIX'
+ 1697 | #define sr_dbg(...)     sr_log(SR_LOG_DBG,  LOG_PREFIX ": " __VA_ARGS__)
+      |                                             ^~~~~~~~~~
+src/hardware/sipeed-slogic-analyzer/protocol.c:307:17: note: in expansion of macro 'sr_dbg'
+  307 |                 sr_dbg("Train: receive %u bytes per %ums...",
+      |                 ^~~~~~
+src/hardware/sipeed-slogic-analyzer/protocol.h:32:20: warning: format '%u' expects argument of type 'unsigned int', but argument 3 has type 'uint64_t' {aka 'long long unsigned int'} [-Wformat=]
+   32 | #define LOG_PREFIX "sipeed-slogic-analyzer"
+      |                    ^~~~~~~~~~~~~~~~~~~~~~~~
+./src/libsigrok-internal.h:1697:45: note: in expansion of macro 'LOG_PREFIX'
+ 1697 | #define sr_dbg(...)     sr_log(SR_LOG_DBG,  LOG_PREFIX ": " __VA_ARGS__)
+      |                                             ^~~~~~~~~~
+src/hardware/sipeed-slogic-analyzer/protocol.c:343:9: note: in expansion of macro 'sr_dbg'
+  343 |         sr_dbg("Choose: receive %u bytes per %ums :)", try_transfer_nbytes,
+      |         ^~~~~~
+src/hardware/sipeed-slogic-analyzer/protocol.h:32:20: warning: format '%u' expects argument of type 'unsigned int', but argument 4 has type 'uint64_t' {aka 'long long unsigned int'} [-Wformat=]
+   32 | #define LOG_PREFIX "sipeed-slogic-analyzer"
+      |                    ^~~~~~~~~~~~~~~~~~~~~~~~
+./src/libsigrok-internal.h:1697:45: note: in expansion of macro 'LOG_PREFIX'
+ 1697 | #define sr_dbg(...)     sr_log(SR_LOG_DBG,  LOG_PREFIX ": " __VA_ARGS__)
+      |                                             ^~~~~~~~~~
+src/hardware/sipeed-slogic-analyzer/protocol.c:343:9: note: in expansion of macro 'sr_dbg'
+  343 |         sr_dbg("Choose: receive %u bytes per %ums :)", try_transfer_nbytes,
+      |         ^~~~~~
+src/hardware/sipeed-slogic-analyzer/protocol.c: In function 'sipeed_slogic_acquisition_start':
+src/hardware/sipeed-slogic-analyzer/protocol.h:32:20: warning: format '%u' expects argument of type 'unsigned int', but argument 4 has type 'long long unsigned int' [-Wformat=]
+   32 | #define LOG_PREFIX "sipeed-slogic-analyzer"
+      |                    ^~~~~~~~~~~~~~~~~~~~~~~~
+./src/libsigrok-internal.h:1698:45: note: in expansion of macro 'LOG_PREFIX'
+ 1698 | #define sr_info(...)    sr_log(SR_LOG_INFO, LOG_PREFIX ": " __VA_ARGS__)
+      |                                             ^~~~~~~~~~
+src/hardware/sipeed-slogic-analyzer/protocol.c:375:17: note: in expansion of macro 'sr_info'
+  375 |                 sr_info("Need continuous capture at %uch@%uMHz.",
+      |                 ^~~~~~~
+src/hardware/sipeed-slogic-analyzer/protocol.h:32:20: warning: format '%u' expects argument of type 'unsigned int', but argument 3 has type 'uint64_t' {aka 'long long unsigned int'} [-Wformat=]
+   32 | #define LOG_PREFIX "sipeed-slogic-analyzer"
+      |                    ^~~~~~~~~~~~~~~~~~~~~~~~
+./src/libsigrok-internal.h:1698:45: note: in expansion of macro 'LOG_PREFIX'
+ 1698 | #define sr_info(...)    sr_log(SR_LOG_INFO, LOG_PREFIX ": " __VA_ARGS__)
+      |                                             ^~~~~~~~~~
+src/hardware/sipeed-slogic-analyzer/protocol.c:380:17: note: in expansion of macro 'sr_info'
+  380 |                 sr_info("Need %ux %uch@%uMHz in %ums.", devc->cur_limit_samples,
+      |                 ^~~~~~~
+src/hardware/sipeed-slogic-analyzer/protocol.h:32:20: warning: format '%u' expects argument of type 'unsigned int', but argument 5 has type 'long long unsigned int' [-Wformat=]
+   32 | #define LOG_PREFIX "sipeed-slogic-analyzer"
+      |                    ^~~~~~~~~~~~~~~~~~~~~~~~
+./src/libsigrok-internal.h:1698:45: note: in expansion of macro 'LOG_PREFIX'
+ 1698 | #define sr_info(...)    sr_log(SR_LOG_INFO, LOG_PREFIX ": " __VA_ARGS__)
+      |                                             ^~~~~~~~~~
+src/hardware/sipeed-slogic-analyzer/protocol.c:380:17: note: in expansion of macro 'sr_info'
+  380 |                 sr_info("Need %ux %uch@%uMHz in %ums.", devc->cur_limit_samples,
+      |                 ^~~~~~~
+src/hardware/sipeed-slogic-analyzer/protocol.h:32:20: warning: format '%u' expects argument of type 'unsigned int', but argument 6 has type 'uint64_t' {aka 'long long unsigned int'} [-Wformat=]
+   32 | #define LOG_PREFIX "sipeed-slogic-analyzer"
+      |                    ^~~~~~~~~~~~~~~~~~~~~~~~
+./src/libsigrok-internal.h:1698:45: note: in expansion of macro 'LOG_PREFIX'
+ 1698 | #define sr_info(...)    sr_log(SR_LOG_INFO, LOG_PREFIX ": " __VA_ARGS__)
+      |                                             ^~~~~~~~~~
+src/hardware/sipeed-slogic-analyzer/protocol.c:380:17: note: in expansion of macro 'sr_info'
+  380 |                 sr_info("Need %ux %uch@%uMHz in %ums.", devc->cur_limit_samples,
+      |                 ^~~~~~~
+src/hardware/sipeed-slogic-analyzer/protocol.h:32:20: warning: format '%d' expects argument of type 'int', but argument 3 has type 'size_t' {aka 'long long unsigned int'} [-Wformat=]
+   32 | #define LOG_PREFIX "sipeed-slogic-analyzer"
+      |                    ^~~~~~~~~~~~~~~~~~~~~~~~
+./src/libsigrok-internal.h:1697:45: note: in expansion of macro 'LOG_PREFIX'
+ 1697 | #define sr_dbg(...)     sr_log(SR_LOG_DBG,  LOG_PREFIX ": " __VA_ARGS__)
+      |                                             ^~~~~~~~~~
+src/hardware/sipeed-slogic-analyzer/protocol.c:409:25: note: in expansion of macro 'sr_dbg'
+  409 |                         sr_dbg("Failed to allocate memory[%d]",
+      |                         ^~~~~~
+src/hardware/sipeed-slogic-analyzer/protocol.h:32:20: warning: format '%d' expects argument of type 'int', but argument 3 has type 'size_t' {aka 'long long unsigned int'} [-Wformat=]
+   32 | #define LOG_PREFIX "sipeed-slogic-analyzer"
+      |                    ^~~~~~~~~~~~~~~~~~~~~~~~
+./src/libsigrok-internal.h:1697:45: note: in expansion of macro 'LOG_PREFIX'
+ 1697 | #define sr_dbg(...)     sr_log(SR_LOG_DBG,  LOG_PREFIX ": " __VA_ARGS__)
+      |                                             ^~~~~~~~~~
+src/hardware/sipeed-slogic-analyzer/protocol.c:416:25: note: in expansion of macro 'sr_dbg'
+  416 |                         sr_dbg("Failed to allocate transfer[%d]",
+      |                         ^~~~~~
+src/hardware/sipeed-slogic-analyzer/protocol.c:424:70: warning: passing argument 7 of 'libusb_fill_bulk_transfer' discards 'const' qualifier from pointer target type [-Wdiscarded-qualifiers]
+  424 |                         devc->per_transfer_nbytes, receive_transfer, sdi,
+      |                                                                      ^~~
+In file included from src/hardware/sipeed-slogic-analyzer/protocol.h:25:
+D:/Apps/Scoop/apps/msys2/2026-03-22/mingw64/include/libusb-1.0/libusb.h:1952:15: note: expected 'void *' but argument is of type 'const struct sr_dev_inst *'
+ 1952 |         void *user_data, unsigned int timeout)
+      |         ~~~~~~^~~~~~~~~
+src/hardware/sipeed-slogic-analyzer/protocol.h:32:20: warning: format '%d' expects argument of type 'int', but argument 3 has type 'size_t' {aka 'long long unsigned int'} [-Wformat=]
+   32 | #define LOG_PREFIX "sipeed-slogic-analyzer"
+      |                    ^~~~~~~~~~~~~~~~~~~~~~~~
+./src/libsigrok-internal.h:1697:45: note: in expansion of macro 'LOG_PREFIX'
+ 1697 | #define sr_dbg(...)     sr_log(SR_LOG_DBG,  LOG_PREFIX ": " __VA_ARGS__)
+      |                                             ^~~~~~~~~~
+src/hardware/sipeed-slogic-analyzer/protocol.c:433:25: note: in expansion of macro 'sr_dbg'
+  433 |                         sr_dbg("Failed to submit transfer[%d]: %s.",
+      |                         ^~~~~~
+src/hardware/sipeed-slogic-analyzer/protocol.h:32:20: warning: format '%u' expects argument of type 'unsigned int', but argument 3 has type 'size_t' {aka 'long long unsigned int'} [-Wformat=]
+   32 | #define LOG_PREFIX "sipeed-slogic-analyzer"
+      |                    ^~~~~~~~~~~~~~~~~~~~~~~~
+./src/libsigrok-internal.h:1697:45: note: in expansion of macro 'LOG_PREFIX'
+ 1697 | #define sr_dbg(...)     sr_log(SR_LOG_DBG,  LOG_PREFIX ": " __VA_ARGS__)
+      |                                             ^~~~~~~~~~
+src/hardware/sipeed-slogic-analyzer/protocol.c:442:9: note: in expansion of macro 'sr_dbg'
+  442 |         sr_dbg("Submited %u transfers", devc->num_transfers_used);
+      |         ^~~~~~
+src/hardware/sipeed-slogic-analyzer/protocol.c:473:48: warning: passing argument 1 of 'sipeed_slogic_acquisition_stop' discards 'const' qualifier from pointer target type [-Wdiscarded-qualifiers]
+  473 |                 sipeed_slogic_acquisition_stop(sdi);
+      |                                                ^~~
+src/hardware/sipeed-slogic-analyzer/protocol.h:118:64: note: expected 'struct sr_dev_inst *' but argument is of type 'const struct sr_dev_inst *'
+  118 | SR_PRIV int sipeed_slogic_acquisition_stop(struct sr_dev_inst *sdi);
+      |                                            ~~~~~~~~~~~~~~~~~~~~^~~
+src/hardware/sipeed-slogic-analyzer/api.c: In function 'scan':
+src/hardware/sipeed-slogic-analyzer/api.c:219:60: warning: pointer targets in passing argument 3 of 'libusb_get_string_descriptor_ascii' differ in signedness [-Wpointer-sign]
+  219 |                                                            cbuf, sizeof(cbuf));
+      |                                                            ^~~~
+      |                                                            |
+      |                                                            char *
+In file included from src/hardware/sipeed-slogic-analyzer/protocol.h:25,
+                 from src/hardware/sipeed-slogic-analyzer/api.c:23:
+D:/Apps/Scoop/apps/msys2/2026-03-22/mingw64/include/libusb-1.0/libusb.h:2200:44: note: expected 'unsigned char *' but argument is of type 'char *'
+ 2200 |         uint8_t desc_index, unsigned char *data, int length);
+      |                             ~~~~~~~~~~~~~~~^~~~
+src/hardware/sipeed-slogic-analyzer/api.c:222:60: warning: pointer targets in passing argument 3 of 'libusb_get_string_descriptor_ascii' differ in signedness [-Wpointer-sign]
+  222 |                                 usb->devhdl, des.iProduct, cbuf, sizeof(cbuf));
+      |                                                            ^~~~
+      |                                                            |
+      |                                                            char *
+D:/Apps/Scoop/apps/msys2/2026-03-22/mingw64/include/libusb-1.0/libusb.h:2200:44: note: expected 'unsigned char *' but argument is of type 'char *'
+ 2200 |         uint8_t desc_index, unsigned char *data, int length);
+      |                             ~~~~~~~~~~~~~~~^~~~
+src/hardware/sipeed-slogic-analyzer/api.c:226:60: warning: pointer targets in passing argument 3 of 'libusb_get_string_descriptor_ascii' differ in signedness [-Wpointer-sign]
+  226 |                                                            cbuf, sizeof(cbuf));
+      |                                                            ^~~~
+      |                                                            |
+      |                                                            char *
+D:/Apps/Scoop/apps/msys2/2026-03-22/mingw64/include/libusb-1.0/libusb.h:2200:44: note: expected 'unsigned char *' but argument is of type 'char *'
+ 2200 |         uint8_t desc_index, unsigned char *data, int length);
+      |                             ~~~~~~~~~~~~~~~^~~~
+src/hardware/sipeed-slogic-analyzer/api.c:263:47: warning: comparison of integer expressions of different signedness: 'unsigned int' and 'int32_t' {aka 'int'} [-Wsign-compare]
+  263 |                                 for (i = 0; i < devc->limit_samplechannel;
+      |                                               ^
+src/hardware/sipeed-slogic-analyzer/api.c:285:24: warning: passing argument 1 of 'g_free' discards 'const' qualifier from pointer target type [-Wdiscarded-qualifiers]
+  285 |                 g_free(conn);
+      |                        ^~~~
+In file included from D:/Apps/Scoop/apps/msys2/2026-03-22/mingw64/include/glib-2.0/glib/glist.h:34,
+                 from D:/Apps/Scoop/apps/msys2/2026-03-22/mingw64/include/glib-2.0/glib/ghash.h:36,
+                 from D:/Apps/Scoop/apps/msys2/2026-03-22/mingw64/include/glib-2.0/glib.h:52,
+                 from src/hardware/sipeed-slogic-analyzer/protocol.h:24:
+D:/Apps/Scoop/apps/msys2/2026-03-22/mingw64/include/glib-2.0/glib/gmem.h:74:46: note: expected 'gpointer' {aka 'void *'} but argument is of type 'const char *'
+   74 | void     (g_free)         (gpointer          mem);
+      |                            ~~~~~~~~~~~~~~~~~~^~~
+src/hardware/sipeed-slogic-analyzer/api.c: In function 'dev_close':
+src/hardware/sipeed-slogic-analyzer/api.c:353:29: warning: variable 'drvc' set but not used [-Wunused-but-set-variable]
+  353 |         struct drv_context *drvc;
+      |                             ^~~~
+src/hardware/sipeed-slogic-analyzer/api.c: In function 'config_set':
+src/hardware/sipeed-slogic-analyzer/protocol.h:32:20: warning: format '%u' expects argument of type 'unsigned int', but argument 3 has type 'long long unsigned int' [-Wformat=]
+   32 | #define LOG_PREFIX "sipeed-slogic-analyzer"
+      |                    ^~~~~~~~~~~~~~~~~~~~~~~~
+./src/libsigrok-internal.h:1699:45: note: in expansion of macro 'LOG_PREFIX'
+ 1699 | #define sr_warn(...)    sr_log(SR_LOG_WARN, LOG_PREFIX ": " __VA_ARGS__)
+      |                                             ^~~~~~~~~~
+src/hardware/sipeed-slogic-analyzer/api.c:441:25: note: in expansion of macro 'sr_warn'
+  441 |                         sr_warn("Reach limit or not supported, wrap to %uMHz.",
+      |                         ^~~~~~~
+src/hardware/sipeed-slogic-analyzer/api.c: At top level:
+src/hardware/sipeed-slogic-analyzer/api.c:523:5: warning: no previous prototype for 'config_channel_set' [-Wmissing-prototypes]
+  523 | int config_channel_set(const struct sr_dev_inst *sdi, struct sr_channel *ch, unsigned int changes) {
+      |     ^~~~~~~~~~~~~~~~~~
+src/hardware/sipeed-slogic-analyzer/api.c: In function 'config_channel_set':
+src/hardware/sipeed-slogic-analyzer/api.c:523:74: warning: unused parameter 'ch' [-Wunused-parameter]
+  523 | int config_channel_set(const struct sr_dev_inst *sdi, struct sr_channel *ch, unsigned int changes) {
+      |                                                       ~~~~~~~~~~~~~~~~~~~^~
+src/hardware/sipeed-slogic-analyzer/api.c: In function 'slogic_usb_control_write':
+src/hardware/sipeed-slogic-analyzer/protocol.h:32:20: warning: format '%u' expects argument of type 'unsigned int', but argument 8 has type 'size_t' {aka 'long long unsigned int'} [-Wformat=]
+   32 | #define LOG_PREFIX "sipeed-slogic-analyzer"
+      |                    ^~~~~~~~~~~~~~~~~~~~~~~~
+./src/libsigrok-internal.h:1696:45: note: in expansion of macro 'LOG_PREFIX'
+ 1696 | #define sr_spew(...)    sr_log(SR_LOG_SPEW, LOG_PREFIX ": " __VA_ARGS__)
+      |                                             ^~~~~~~~~~
+src/hardware/sipeed-slogic-analyzer/api.c:638:9: note: in expansion of macro 'sr_spew'
+  638 |         sr_spew("%s: req:%u value:%u index:%u %p:%u in %dms.", __func__,
+      |         ^~~~~~~
+src/hardware/sipeed-slogic-analyzer/protocol.h:32:20: warning: format '%u' expects argument of type 'unsigned int', but argument 4 has type 'size_t' {aka 'long long unsigned int'} [-Wformat=]
+   32 | #define LOG_PREFIX "sipeed-slogic-analyzer"
+      |                    ^~~~~~~~~~~~~~~~~~~~~~~~
+./src/libsigrok-internal.h:1699:45: note: in expansion of macro 'LOG_PREFIX'
+ 1699 | #define sr_warn(...)    sr_log(SR_LOG_WARN, LOG_PREFIX ": " __VA_ARGS__)
+      |                                             ^~~~~~~~~~
+src/hardware/sipeed-slogic-analyzer/api.c:641:17: note: in expansion of macro 'sr_warn'
+  641 |                 sr_warn("%s: Nothing to write although len(%u)>0!", __func__,
+      |                 ^~~~~~~
+src/hardware/sipeed-slogic-analyzer/protocol.h:32:20: warning: format '%u' expects argument of type 'unsigned int', but argument 4 has type 'size_t' {aka 'long long unsigned int'} [-Wformat=]
+   32 | #define LOG_PREFIX "sipeed-slogic-analyzer"
+      |                    ^~~~~~~~~~~~~~~~~~~~~~~~
+./src/libsigrok-internal.h:1699:45: note: in expansion of macro 'LOG_PREFIX'
+ 1699 | #define sr_warn(...)    sr_log(SR_LOG_WARN, LOG_PREFIX ": " __VA_ARGS__)
+      |                                             ^~~~~~~~~~
+src/hardware/sipeed-slogic-analyzer/api.c:646:17: note: in expansion of macro 'sr_warn'
+  646 |                 sr_warn("%s: Align up to %u(from %u)!", __func__, len_aligndup,
+      |                 ^~~~~~~
+src/hardware/sipeed-slogic-analyzer/protocol.h:32:20: warning: format '%u' expects argument of type 'unsigned int', but argument 5 has type 'size_t' {aka 'long long unsigned int'} [-Wformat=]
+   32 | #define LOG_PREFIX "sipeed-slogic-analyzer"
+      |                    ^~~~~~~~~~~~~~~~~~~~~~~~
+./src/libsigrok-internal.h:1699:45: note: in expansion of macro 'LOG_PREFIX'
+ 1699 | #define sr_warn(...)    sr_log(SR_LOG_WARN, LOG_PREFIX ": " __VA_ARGS__)
+      |                                             ^~~~~~~~~~
+src/hardware/sipeed-slogic-analyzer/api.c:646:17: note: in expansion of macro 'sr_warn'
+  646 |                 sr_warn("%s: Align up to %u(from %u)!", __func__, len_aligndup,
+      |                 ^~~~~~~
+src/hardware/sipeed-slogic-analyzer/api.c:632:29: warning: variable 'devc' set but not used [-Wunused-but-set-variable]
+  632 |         struct dev_context *devc;
+      |                             ^~~~
+src/hardware/sipeed-slogic-analyzer/api.c: In function 'slogic_usb_control_read':
+src/hardware/sipeed-slogic-analyzer/protocol.h:32:20: warning: format '%u' expects argument of type 'unsigned int', but argument 8 has type 'size_t' {aka 'long long unsigned int'} [-Wformat=]
+   32 | #define LOG_PREFIX "sipeed-slogic-analyzer"
+      |                    ^~~~~~~~~~~~~~~~~~~~~~~~
+./src/libsigrok-internal.h:1696:45: note: in expansion of macro 'LOG_PREFIX'
+ 1696 | #define sr_spew(...)    sr_log(SR_LOG_SPEW, LOG_PREFIX ": " __VA_ARGS__)
+      |                                             ^~~~~~~~~~
+src/hardware/sipeed-slogic-analyzer/api.c:680:9: note: in expansion of macro 'sr_spew'
+  680 |         sr_spew("%s: req:%u value:%u index:%u %p:%u in %dms.", __func__,
+      |         ^~~~~~~
+src/hardware/sipeed-slogic-analyzer/protocol.h:32:20: warning: format '%u' expects argument of type 'unsigned int', but argument 4 has type 'size_t' {aka 'long long unsigned int'} [-Wformat=]
+   32 | #define LOG_PREFIX "sipeed-slogic-analyzer"
+      |                    ^~~~~~~~~~~~~~~~~~~~~~~~
+./src/libsigrok-internal.h:1700:45: note: in expansion of macro 'LOG_PREFIX'
+ 1700 | #define sr_err(...)     sr_log(SR_LOG_ERR,  LOG_PREFIX ": " __VA_ARGS__)
+      |                                             ^~~~~~~~~~
+src/hardware/sipeed-slogic-analyzer/api.c:683:17: note: in expansion of macro 'sr_err'
+  683 |                 sr_err("%s: Can't read to NULL while len(%u)>0!", __func__,
+      |                 ^~~~~~
+src/hardware/sipeed-slogic-analyzer/protocol.h:32:20: warning: format '%u' expects argument of type 'unsigned int', but argument 4 has type 'size_t' {aka 'long long unsigned int'} [-Wformat=]
+   32 | #define LOG_PREFIX "sipeed-slogic-analyzer"
+      |                    ^~~~~~~~~~~~~~~~~~~~~~~~
+./src/libsigrok-internal.h:1699:45: note: in expansion of macro 'LOG_PREFIX'
+ 1699 | #define sr_warn(...)    sr_log(SR_LOG_WARN, LOG_PREFIX ": " __VA_ARGS__)
+      |                                             ^~~~~~~~~~
+src/hardware/sipeed-slogic-analyzer/api.c:688:17: note: in expansion of macro 'sr_warn'
+  688 |                 sr_warn("%s: Align up to %u(from %u)!", __func__, len_aligndup,
+      |                 ^~~~~~~
+src/hardware/sipeed-slogic-analyzer/protocol.h:32:20: warning: format '%u' expects argument of type 'unsigned int', but argument 5 has type 'size_t' {aka 'long long unsigned int'} [-Wformat=]
+   32 | #define LOG_PREFIX "sipeed-slogic-analyzer"
+      |                    ^~~~~~~~~~~~~~~~~~~~~~~~
+./src/libsigrok-internal.h:1699:45: note: in expansion of macro 'LOG_PREFIX'
+ 1699 | #define sr_warn(...)    sr_log(SR_LOG_WARN, LOG_PREFIX ": " __VA_ARGS__)
+      |                                             ^~~~~~~~~~
+src/hardware/sipeed-slogic-analyzer/api.c:688:17: note: in expansion of macro 'sr_warn'
+  688 |                 sr_warn("%s: Align up to %u(from %u)!", __func__, len_aligndup,
+      |                 ^~~~~~~
+src/hardware/sipeed-slogic-analyzer/api.c:674:29: warning: variable 'devc' set but not used [-Wunused-but-set-variable]
+  674 |         struct dev_context *devc;
+      |                             ^~~~
+src/hardware/sipeed-slogic-analyzer/api.c: At top level:
+src/hardware/sipeed-slogic-analyzer/api.c:745:5: warning: no previous prototype for 'slogic_soft_trigger_raw_data' [-Wmissing-prototypes]
+  745 | int slogic_soft_trigger_raw_data(void *data, size_t len,
+      |     ^~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/hardware/sipeed-slogic-analyzer/api.c: In function 'slogic_combo8_remote_stop':
+src/hardware/sipeed-slogic-analyzer/api.c:877:33: warning: unused variable 'usb' [-Wunused-variable]
+  877 |         struct sr_usb_dev_inst *usb = sdi->conn;
+      |                                 ^~~
+src/hardware/sipeed-slogic-analyzer/api.c:876:29: warning: unused variable 'devc' [-Wunused-variable]
+  876 |         struct dev_context *devc = sdi->priv;
+      |                             ^~~~
+src/hardware/sipeed-slogic-analyzer/api.c: In function 'slogic16U3_remote_test_mode':
+src/hardware/sipeed-slogic-analyzer/protocol.h:32:20: warning: format '%u' expects argument of type 'unsigned int', but argument 3 has type 'size_t' {aka 'long long unsigned int'} [-Wformat=]
+   32 | #define LOG_PREFIX "sipeed-slogic-analyzer"
+      |                    ^~~~~~~~~~~~~~~~~~~~~~~~
+./src/libsigrok-internal.h:1697:45: note: in expansion of macro 'LOG_PREFIX'
+ 1697 | #define sr_dbg(...)     sr_log(SR_LOG_DBG,  LOG_PREFIX ": " __VA_ARGS__)
+      |                                             ^~~~~~~~~~
+src/hardware/sipeed-slogic-analyzer/api.c:910:25: note: in expansion of macro 'sr_dbg'
+  910 |                         sr_dbg("[%u]read aux testmode: %08x.", retry,
+      |                         ^~~~~~
+src/hardware/sipeed-slogic-analyzer/api.c:895:29: warning: unused variable 'devc' [-Wunused-variable]
+  895 |         struct dev_context *devc = sdi->priv;
+      |                             ^~~~
+In file included from src/hardware/sipeed-slogic-analyzer/protocol.h:30:
+src/hardware/sipeed-slogic-analyzer/api.c: In function 'slogic16U3_remote_reset':
+./src/libsigrok-internal.h:59:27: warning: passing argument 5 of 'slogic_usb_control_write' discards 'const' qualifier from pointer target type [-Wdiscarded-qualifiers]
+   59 | #define ARRAY_AND_SIZE(a) (a), ARRAY_SIZE(a)
+      |                           ^~~
+src/hardware/sipeed-slogic-analyzer/api.c:957:17: note: in expansion of macro 'ARRAY_AND_SIZE'
+  957 |                 ARRAY_AND_SIZE(cmd_rst), 500);
+      |                 ^~~~~~~~~~~~~~
+src/hardware/sipeed-slogic-analyzer/api.c:628:62: note: expected 'uint8_t *' {aka 'unsigned char *'} but argument is of type 'const uint8_t *' {aka 'const unsigned char *'}
+  628 |                                     uint16_t index, uint8_t *data, size_t len,
+      |                                                     ~~~~~~~~~^~~~
+./src/libsigrok-internal.h:59:27: warning: passing argument 5 of 'slogic_usb_control_write' discards 'const' qualifier from pointer target type [-Wdiscarded-qualifiers]
+   59 | #define ARRAY_AND_SIZE(a) (a), ARRAY_SIZE(a)
+      |                           ^~~
+src/hardware/sipeed-slogic-analyzer/api.c:961:34: note: in expansion of macro 'ARRAY_AND_SIZE'
+  961 |                                  ARRAY_AND_SIZE(cmd_derst), 500);
+      |                                  ^~~~~~~~~~~~~~
+src/hardware/sipeed-slogic-analyzer/api.c:628:62: note: expected 'uint8_t *' {aka 'unsigned char *'} but argument is of type 'const uint8_t *' {aka 'const unsigned char *'}
+  628 |                                     uint16_t index, uint8_t *data, size_t len,
+      |                                                     ~~~~~~~~~^~~~
+src/hardware/sipeed-slogic-analyzer/api.c:951:29: warning: unused variable 'devc' [-Wunused-variable]
+  951 |         struct dev_context *devc = sdi->priv;
+      |                             ^~~~
+src/hardware/sipeed-slogic-analyzer/api.c: In function 'slogic16U3_remote_run':
+src/hardware/sipeed-slogic-analyzer/protocol.h:32:20: warning: format '%u' expects argument of type 'unsigned int', but argument 3 has type 'size_t' {aka 'long long unsigned int'} [-Wformat=]
+   32 | #define LOG_PREFIX "sipeed-slogic-analyzer"
+      |                    ^~~~~~~~~~~~~~~~~~~~~~~~
+./src/libsigrok-internal.h:1697:45: note: in expansion of macro 'LOG_PREFIX'
+ 1697 | #define sr_dbg(...)     sr_log(SR_LOG_DBG,  LOG_PREFIX ": " __VA_ARGS__)
+      |                                             ^~~~~~~~~~
+src/hardware/sipeed-slogic-analyzer/api.c:982:25: note: in expansion of macro 'sr_dbg'
+  982 |                         sr_dbg("[%u]read aux channel: %08x.", retry,
+      |                         ^~~~~~
+src/hardware/sipeed-slogic-analyzer/api.c:1011:56: warning: comparison of integer expressions of different signedness: 'int' and 'uint32_t' {aka 'unsigned int'} [-Wsign-compare]
+ 1011 |                 if ((1 << devc->cur_samplechannel) - 1 !=
+      |                                                        ^~
+src/hardware/sipeed-slogic-analyzer/protocol.h:32:20: warning: format '%u' expects argument of type 'unsigned int', but argument 3 has type 'size_t' {aka 'long long unsigned int'} [-Wformat=]
+   32 | #define LOG_PREFIX "sipeed-slogic-analyzer"
+      |                    ^~~~~~~~~~~~~~~~~~~~~~~~
+./src/libsigrok-internal.h:1697:45: note: in expansion of macro 'LOG_PREFIX'
+ 1697 | #define sr_dbg(...)     sr_log(SR_LOG_DBG,  LOG_PREFIX ": " __VA_ARGS__)
+      |                                             ^~~~~~~~~~
+src/hardware/sipeed-slogic-analyzer/api.c:1031:25: note: in expansion of macro 'sr_dbg'
+ 1031 |                         sr_dbg("[%u]read aux samplerate: %08x.", retry,
+      |                         ^~~~~~
+src/hardware/sipeed-slogic-analyzer/protocol.h:32:20: warning: format '%u' expects argument of type 'unsigned int', but argument 4 has type 'uint64_t' {aka 'long long unsigned int'} [-Wformat=]
+   32 | #define LOG_PREFIX "sipeed-slogic-analyzer"
+      |                    ^~~~~~~~~~~~~~~~~~~~~~~~
+./src/libsigrok-internal.h:1697:45: note: in expansion of macro 'LOG_PREFIX'
+ 1697 | #define sr_dbg(...)     sr_log(SR_LOG_DBG,  LOG_PREFIX ": " __VA_ARGS__)
+      |                                             ^~~~~~~~~~
+src/hardware/sipeed-slogic-analyzer/api.c:1053:33: note: in expansion of macro 'sr_dbg'
+ 1053 |                                 sr_dbg("Failed to configure samplerate from base[%u] %u.",
+      |                                 ^~~~~~
+src/hardware/sipeed-slogic-analyzer/protocol.h:32:20: warning: format '%u' expects argument of type 'unsigned int', but argument 3 has type 'size_t' {aka 'long long unsigned int'} [-Wformat=]
+   32 | #define LOG_PREFIX "sipeed-slogic-analyzer"
+      |                    ^~~~~~~~~~~~~~~~~~~~~~~~
+./src/libsigrok-internal.h:1697:45: note: in expansion of macro 'LOG_PREFIX'
+ 1697 | #define sr_dbg(...)     sr_log(SR_LOG_DBG,  LOG_PREFIX ": " __VA_ARGS__)
+      |                                             ^~~~~~~~~~
+src/hardware/sipeed-slogic-analyzer/api.c:1105:25: note: in expansion of macro 'sr_dbg'
+ 1105 |                         sr_dbg("[%u]read vref(/1024x1v6): %08x.", retry,
+      |                         ^~~~~~
+./src/libsigrok-internal.h:59:27: warning: passing argument 5 of 'slogic_usb_control_write' discards 'const' qualifier from pointer target type [-Wdiscarded-qualifiers]
+   59 | #define ARRAY_AND_SIZE(a) (a), ARRAY_SIZE(a)
+      |                           ^~~
+src/hardware/sipeed-slogic-analyzer/api.c:1149:41: note: in expansion of macro 'ARRAY_AND_SIZE'
+ 1149 |                                         ARRAY_AND_SIZE(cmd_run), 500);
+      |                                         ^~~~~~~~~~~~~~
+src/hardware/sipeed-slogic-analyzer/api.c:628:62: note: expected 'uint8_t *' {aka 'unsigned char *'} but argument is of type 'const uint8_t *' {aka 'const unsigned char *'}
+  628 |                                     uint16_t index, uint8_t *data, size_t len,
+      |                                                     ~~~~~~~~~^~~~
+src/hardware/sipeed-slogic-analyzer/api.c: In function 'slogic16U3_remote_stop':
+./src/libsigrok-internal.h:59:27: warning: passing argument 5 of 'slogic_usb_control_write' discards 'const' qualifier from pointer target type [-Wdiscarded-qualifiers]
+   59 | #define ARRAY_AND_SIZE(a) (a), ARRAY_SIZE(a)
+      |                           ^~~
+src/hardware/sipeed-slogic-analyzer/api.c:1158:41: note: in expansion of macro 'ARRAY_AND_SIZE'
+ 1158 |                                         ARRAY_AND_SIZE(cmd_stop), 500);
+      |                                         ^~~~~~~~~~~~~~
+src/hardware/sipeed-slogic-analyzer/api.c:628:62: note: expected 'uint8_t *' {aka 'unsigned char *'} but argument is of type 'const uint8_t *' {aka 'const unsigned char *'}
+  628 |                                     uint16_t index, uint8_t *data, size_t len,
+      |                                                     ~~~~~~~~~^~~~
+src/hardware/sipeed-slogic-analyzer/api.c: At top level:
+src/hardware/sipeed-slogic-analyzer/api.c:1204:56: warning: initialization discards 'const' qualifier from pointer target type [-Wdiscarded-qualifiers]
+ 1204 | static struct slogic_model *const support_models_ptr = &support_models[0];
+      |                                                        ^
+  CC       src/hardware/sysclk-lwla/lwla1016.lo
+  CC       src/hardware/sysclk-lwla/lwla1034.lo
+  CC       src/hardware/sysclk-lwla/protocol.lo
+  CC       src/hardware/sysclk-lwla/api.lo
+  CC       src/hardware/sysclk-sla5032/protocol.lo
+  CC       src/hardware/sysclk-sla5032/api.lo
+  CC       src/hardware/teleinfo/protocol.lo
+  CC       src/hardware/teleinfo/api.lo
+  CC       src/hardware/testo/protocol.lo
+  CC       src/hardware/testo/api.lo
+  CC       src/hardware/tondaj-sl-814/protocol.lo
+  CC       src/hardware/tondaj-sl-814/api.lo
+  CC       src/hardware/uni-t-dmm/protocol.lo
+  CC       src/hardware/uni-t-dmm/api.lo
+  CC       src/hardware/uni-t-ut181a/protocol.lo
+  CC       src/hardware/uni-t-ut181a/api.lo
+  CC       src/hardware/uni-t-ut32x/protocol.lo
+  CC       src/hardware/uni-t-ut32x/api.lo
+  CC       src/hardware/yokogawa-dlm/protocol.lo
+  CC       src/hardware/yokogawa-dlm/protocol_wrappers.lo
+  CC       src/hardware/yokogawa-dlm/api.lo
+  CC       src/hardware/zeroplus-logic-cube/analyzer.lo
+  CC       src/hardware/zeroplus-logic-cube/gl_usb.lo
+  CC       src/hardware/zeroplus-logic-cube/protocol.lo
+  CC       src/hardware/zeroplus-logic-cube/api.lo
+  CC       src/hardware/zketech-ebd-usb/protocol.lo
+  CC       src/hardware/zketech-ebd-usb/api.lo
+  CC       src/driver_list_start.lo
+  CC       src/driver_list_stop.lo
+  GEN      bindings/cxx/enums.timestamp
+  CXX      bindings/cxx/classes.lo
+  CCLD     src/libdrivers.la
+  CCLD     src/libdrivers_head.la
+copying selected object files to avoid basename conflicts...
+  CCLD     src/libdrivers_tail.la
+  CCLD     src/libdrivers.o
+  GEN      src/libdrivers.lo
+  CCLD     libsigrok.la
+copying selected object files to avoid basename conflicts...
+  CXXLD    bindings/cxx/libsigrokcxx.la

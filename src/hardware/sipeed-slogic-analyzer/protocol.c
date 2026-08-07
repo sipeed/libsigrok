@@ -368,11 +368,17 @@ SR_PRIV int sipeed_slogic_acquisition_start(const struct sr_dev_inst *sdi)
 	}
 
 	devc->samples_got_nbytes = 0;
-	devc->samples_need_nbytes =
-		devc->cur_limit_samples * devc->cur_samplechannel / 8;
-	sr_info("Need %ux %uch@%uMHz in %ums.", devc->cur_limit_samples,
-		devc->cur_samplechannel, devc->cur_samplerate / SR_MHZ(1),
-		1000 * devc->cur_limit_samples / devc->cur_samplerate);
+	if (devc->continuous_mode) {
+		devc->samples_need_nbytes = UINT64_MAX;
+		sr_info("Need continuous capture at %uch@%uMHz.",
+			devc->cur_samplechannel, devc->cur_samplerate / SR_MHZ(1));
+	} else {
+		devc->samples_need_nbytes =
+			devc->cur_limit_samples * devc->cur_samplechannel / 8;
+		sr_info("Need %ux %uch@%uMHz in %ums.", devc->cur_limit_samples,
+			devc->cur_samplechannel, devc->cur_samplerate / SR_MHZ(1),
+			1000 * devc->cur_limit_samples / devc->cur_samplerate);
+	}
 
 	if ((ret = train_bulk_in_transfer(devc, usb->devhdl)) != SR_OK) {
 		sr_err("Failed to train bulk_in_transfer!`");

@@ -74,6 +74,7 @@ struct dev_context {
 		uint64_t cur_limit_samples;
 		uint64_t cur_samplerate;
 		int32_t cur_samplechannel;
+		gboolean continuous_mode;
 		int64_t cur_pattern_mode_idx;
 		uint32_t expected_rate_MBps;
 	}; // configuration
