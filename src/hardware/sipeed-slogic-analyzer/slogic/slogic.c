@@ -22,35 +22,9 @@
 
 /* -------------------- model registry -------------------- */
 
-extern const slogic_model slogic_model_16u3; /* slogic16u3.c */
-extern const slogic_model slogic_model_32u3; /* slogic32u3.c */
-
-/* Combo 8 is the small legacy command protocol; its table lives here. */
-static const uint64_t rates_combo8[] = {
-	SLOGIC_MHZ(1),  SLOGIC_MHZ(2),  SLOGIC_MHZ(4),  SLOGIC_MHZ(5),
-	SLOGIC_MHZ(8),  SLOGIC_MHZ(10), SLOGIC_MHZ(16), SLOGIC_MHZ(20),
-	SLOGIC_MHZ(32), SLOGIC_MHZ(40), SLOGIC_MHZ(80), SLOGIC_MHZ(160),
-};
-
-/* 2 ch -> 160, 4 ch -> 80, 8 ch -> 40 MHz. */
-static const slogic_rate_limit limits_combo8[] = {
-	{ 2, SLOGIC_MHZ(160) },
-	{ 4, SLOGIC_MHZ(80) },
-	{ 8, SLOGIC_MHZ(40) },
-};
-
-static const slogic_model slogic_model_combo8 = {
-	.name = "SLogic Combo 8",
-	.pid = SLOGIC_PID_COMBO8,
-	.ep_in = 0x81,
-	.physical_channels = 8,
-	.proto = SLOGIC_PROTO_COMBO8,
-	.max_bandwidth_hz = SLOGIC_MHZ(320),
-	.rates = rates_combo8,
-	.rate_count = sizeof(rates_combo8) / sizeof(rates_combo8[0]),
-	.limits = limits_combo8,
-	.limit_count = sizeof(limits_combo8) / sizeof(limits_combo8[0]),
-};
+extern const slogic_model slogic_model_combo8; /* slogic8u2.c */
+extern const slogic_model slogic_model_16u3;   /* slogic16u3.c */
+extern const slogic_model slogic_model_32u3;   /* slogic32u3.c */
 
 static const slogic_model *const registry[] = {
 	&slogic_model_combo8,

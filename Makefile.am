@@ -707,6 +707,7 @@ src_libdrivers_la_SOURCES += \
 	src/hardware/sipeed-slogic-analyzer/protocol.c \
 	src/hardware/sipeed-slogic-analyzer/slogic/slogic.h \
 	src/hardware/sipeed-slogic-analyzer/slogic/slogic.c \
+	src/hardware/sipeed-slogic-analyzer/slogic/slogic8u2.c \
 	src/hardware/sipeed-slogic-analyzer/slogic/slogic16u3.c \
 	src/hardware/sipeed-slogic-analyzer/slogic/slogic32u3.c \
 	src/hardware/sipeed-slogic-analyzer/api.c
