@@ -60,7 +60,12 @@ enum {
 	SLOGIC_PATTERN_NORMAL = 0,
 	SLOGIC_PATTERN_USB_TEST = 1,   /* "USB connection test" max-speed pattern */
 	SLOGIC_PATTERN_EMULATION = 2,  /* structured pattern generator */
+	SLOGIC_PATTERN_COUNT = 3,
 };
+
+/* Display names indexed by SLOGIC_PATTERN_*, so both front ends show the same
+ * strings (libsigrok SR_CONF_PATTERN_MODE, DSView pattern list). */
+extern const char *const slogic_pattern_names[SLOGIC_PATTERN_COUNT];
 
 /*
  * Transport: the host owns the USB device; libslogic never opens, claims, or

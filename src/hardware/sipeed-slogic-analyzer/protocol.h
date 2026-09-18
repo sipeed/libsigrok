@@ -29,39 +29,16 @@
 
 #include "libsigrok-internal.h"
 
+#include "slogic/slogic.h"
+
 #define LOG_PREFIX "sipeed-slogic-analyzer"
 
 #define USB_VID_SIPEED UINT16_C(0x359f)
 #define NUM_MAX_TRANSFERS 16
 #define TRANSFERS_DURATION_TOLERANCE 0.3f
 
-enum {
-	PATTERN_MODE_NORMAL,
-	PATTERN_MODE_TEST_HARDWARE_USB_MAX_SPEED,
-	PATTERN_MODE_TEST_HARDWARE_EMU_DATA,
-};
-
-struct sr_slogic_model {
-	const char *name;
-	const uint16_t pid;
-	const uint8_t ep_in;
-	const uint64_t max_bandwidth; // limit by hardware
-	const int32_t *samplechannel_table;
-	const uint64_t samplechannel_table_size;
-	const uint64_t *limit_samplerate_table;
-	const uint64_t *samplerate_table;
-	const uint64_t samplerate_table_size;
-	const struct {
-		int (*remote_reset)(const struct sr_dev_inst *sdi);
-		int (*remote_run)(const struct sr_dev_inst *sdi);
-		int (*remote_stop)(const struct sr_dev_inst *sdi);
-	} operation;
-	void (*submit_raw_data)(void *data, size_t len,
-				const struct sr_dev_inst *sdi);
-};
-
 struct dev_context {
-	const struct sr_slogic_model *model;
+	const slogic_model *model;
 
 	struct sr_channel_group *digital_group;
 
@@ -116,5 +93,12 @@ struct dev_context {
 
 SR_PRIV int sipeed_slogic_acquisition_start(const struct sr_dev_inst *sdi);
 SR_PRIV int sipeed_slogic_acquisition_stop(struct sr_dev_inst *sdi);
+
+/* Adapter entry points bridging the shared libslogic core to libsigrok:
+ * defined in api.c, called from protocol.c's transfer engine. */
+SR_PRIV int slogic_dev_start(const struct sr_dev_inst *sdi);
+SR_PRIV int slogic_dev_stop(const struct sr_dev_inst *sdi);
+SR_PRIV void slogic_submit_raw_data(void *data, size_t len,
+				    const struct sr_dev_inst *sdi);
 
 #endif

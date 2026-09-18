@@ -65,6 +65,12 @@ const slogic_model *const *slogic_models(size_t *count)
 	return registry;
 }
 
+const char *const slogic_pattern_names[SLOGIC_PATTERN_COUNT] = {
+	[SLOGIC_PATTERN_NORMAL] = "Normal",
+	[SLOGIC_PATTERN_USB_TEST] = "USB connection test",
+	[SLOGIC_PATTERN_EMULATION] = "Emulation",
+};
+
 const slogic_model *slogic_model_for_pid(uint16_t pid)
 {
 	size_t i;

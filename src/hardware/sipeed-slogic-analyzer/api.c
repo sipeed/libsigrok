@@ -29,6 +29,10 @@
  * the libsigrok-specific surface: scan/config, the sample-major data shaping,
  * and the driver-side soft trigger. */
 
+/* Core-bridging helpers defined after the driver struct but used above it. */
+static unsigned int adapter_channels(const slogic_model *m, int32_t *out);
+static int slogic_dev_reset(const struct sr_dev_inst *sdi);
+
 static const uint32_t scanopts[] = {
 	SR_CONF_CONN,
 };
@@ -47,113 +51,9 @@ static const uint32_t devopts[] = {
 	SR_CONF_NUM_LOGIC_CHANNELS | SR_CONF_GET | SR_CONF_SET | SR_CONF_LIST
 };
 
-static const uint64_t samplerates_slogiccombo8[] = {
-	/** 
-	 * SLogic Combo 8 (USBHS 480Mbps bw: 40MB/s)
-	 *  160M = 2^5*5^1  M
-	*/
-
-	SR_MHZ(1),
-	SR_MHZ(2),
-	SR_MHZ(4),
-	SR_MHZ(5),
-	SR_MHZ(8),
-	SR_MHZ(10),
-	SR_MHZ(16),
-	SR_MHZ(20),
-	SR_MHZ(32),
-	/* x 8ch */
-	SR_MHZ(40),
-	/* x 4ch */
-	SR_MHZ(80),
-	/* x 2ch */
-	SR_MHZ(160),
-};
-
-static const int32_t samplechannels_slogiccombo8[] = { 2, 4, 8 };
-static const uint64_t limit_samplerates_slogiccombo8[] = { SR_MHZ(160), SR_MHZ(80), SR_MHZ(40) };
-
-static const uint64_t samplerates_slogic16u3[] = {
-	/**
-	 * SLogic 16U3 (USBSS 5Gbps bw: 400MB/s)
-	 *  800M = 2^5*5^2  M
-	 * --1200M = 2^4*3^1*5^2  M
-	 * --1500M = 2^2*3^1*5^3  M
-	 * --1600M = 2^6    *5^2  M
-	*/
-
-	// SR_MHZ(1),
-	// SR_MHZ(2),
-	// SR_MHZ(4),
-	SR_MHZ(5),
-	SR_MHZ(8),
-	SR_MHZ(10),
-	// SR_MHZ(15),
-	SR_MHZ(16),
-	SR_MHZ(20),
-	// SR_MHZ(24),
-	SR_MHZ(25),
-	// SR_MHZ(30),
-	SR_MHZ(32),
-	SR_MHZ(40),
-	// SR_MHZ(48),
-	SR_MHZ(50),
-	// SR_MHZ(60),
-	SR_MHZ(80),
-	SR_MHZ(100),
-	// SR_MHZ(125),
-	// SR_MHZ(150),
-	SR_MHZ(160),
-	/* x 16ch */
-	SR_MHZ(200),
-	/* x 8ch */
-	// SR_MHZ(300),
-	SR_MHZ(400),
-	/* x 4ch */
-	// SR_MHZ(500),
-	// SR_MHZ(600),
-	// SR_MHZ(750),
-	SR_MHZ(800),
-	/* x 2ch */
-	// SR_MHZ(1200),
-	// SR_MHZ(1500),
-};
-
-static const int32_t samplechannels_slogic16u3[] = { /*2, */4, 8, 16 };
-static const uint64_t limit_samplerates_slogic16u3[] = 
-#ifdef _WIN32
-	{ /*SR_MHZ(1500), */SR_MHZ(400), SR_MHZ(200), SR_MHZ(100) };
-#else
-	{ /*SR_MHZ(1500), */SR_MHZ(800), SR_MHZ(400), SR_MHZ(200) };
-#endif
-
-static const uint64_t samplerates_slogic32u3[] = {
-	SR_MHZ(5),
-	SR_MHZ(8),
-	SR_MHZ(10),
-	SR_MHZ(16),
-	SR_MHZ(20),
-	SR_MHZ(25),
-	SR_MHZ(32),
-	SR_MHZ(40),
-	SR_MHZ(50),
-	SR_MHZ(80),
-	SR_MHZ(100),
-	SR_MHZ(160),
-	SR_MHZ(200),
-	SR_MHZ(400),
-	SR_MHZ(800),
-	SR_MHZ(1600),
-};
-static const int32_t samplechannels_slogic32u3[] = { /*2, */4, 8, 16 , 32 };
-static const uint64_t limit_samplerates_slogic32u3[] = 
-	{ SR_MHZ(1600), SR_MHZ(800), SR_MHZ(400), SR_MHZ(200) };
-
-static const char *patterns[] = {
-	[PATTERN_MODE_NORMAL] = "Normal",
-	[PATTERN_MODE_TEST_HARDWARE_USB_MAX_SPEED] = "USB connection test",
-	[PATTERN_MODE_TEST_HARDWARE_EMU_DATA] = "Emulation",
-};
+/* Model tables (samplerates, channel modes, ceilings, pattern names) now
+ * live in the shared core (slogic/) and are read through slogic_model and
+ * the slogic_* accessors. */
 
 static const int32_t trigger_matches[] = {
 	SR_TRIGGER_ZERO,    SR_TRIGGER_ONE,  SR_TRIGGER_RISING,
@@ -161,8 +61,6 @@ static const int32_t trigger_matches[] = {
 };
 
 static struct sr_dev_driver sipeed_slogic_analyzer_driver_info;
-
-static struct sr_slogic_model *const support_models_ptr;
 
 static gpointer libusb_event_thread_func(gpointer user_data)
 {
@@ -193,7 +91,9 @@ static GSList *scan(struct sr_dev_driver *di, GSList *options)
 	struct drv_context *drvc;
 	struct dev_context *devc;
 
-	struct sr_slogic_model *model;
+	const slogic_model *model;
+	const slogic_model *const *models;
+	size_t mi, nmodels;
 	struct sr_config *option;
 	struct libusb_device_descriptor des;
 	GSList *devices;
@@ -230,7 +130,9 @@ static GSList *scan(struct sr_dev_driver *di, GSList *options)
 		}
 	}
 
-	for (model = support_models_ptr; model->name; model++) {
+	models = slogic_models(&nmodels);
+	for (mi = 0; mi < nmodels; mi++) {
+		model = models[mi];
 		conn = g_strdup_printf("%04x.%04x", USB_VID_SIPEED, model->pid);
 		/* Find all slogic compatible devices. */
 		conn_devices = sr_usb_find(drvc->sr_ctx->libusb_ctx, conn);
@@ -270,17 +172,15 @@ static GSList *scan(struct sr_dev_driver *di, GSList *options)
 			{
 				devc->model = model;
 
-				devc->limit_samplechannel = devc->model->samplechannel_table[
-					devc->model->samplechannel_table_size - 1];
-				devc->limit_samplerate = devc->model->limit_samplerate_table[
-					std_i32_idx(g_variant_new_int32(devc->limit_samplechannel),
-						devc->model->samplechannel_table, devc->model->samplechannel_table_size)
-				];
+				devc->limit_samplechannel =
+					model->limits[model->limit_count - 1].channels;
+				devc->limit_samplerate = slogic_max_rate(model,
+					devc->limit_samplechannel);
 
 				devc->cur_samplechannel =
 					devc->limit_samplechannel;
 				devc->cur_samplerate = devc->limit_samplerate;
-				devc->cur_pattern_mode_idx = PATTERN_MODE_NORMAL;
+				devc->cur_pattern_mode_idx = SLOGIC_PATTERN_NORMAL;
 				devc->voltage_threshold[0] =
 					devc->voltage_threshold[1] = 1.7000000000000004;
 
@@ -358,8 +258,7 @@ static int dev_open(struct sr_dev_inst *sdi)
 		return SR_ERR_MALLOC;
 	}
 
-	if (devc->model->operation.remote_reset)
-		devc->model->operation.remote_reset(sdi);
+	slogic_dev_reset(sdi);
 
 	devc->voltage_threshold[0] = devc->voltage_threshold[1] = 1.7000000000000004;
 
@@ -428,7 +327,7 @@ static int config_get(uint32_t key, GVariant **data,
 		break;
 	case SR_CONF_PATTERN_MODE:
 		*data = g_variant_new_string(
-			patterns[devc->cur_pattern_mode_idx]);
+			slogic_pattern_names[devc->cur_pattern_mode_idx]);
 		break;
 	case SR_CONF_LIMIT_SAMPLES:
 		*data = g_variant_new_uint64(devc->cur_limit_samples);
@@ -459,7 +358,7 @@ static int config_set(uint32_t key, GVariant *data,
 	switch (key) {
 	case SR_CONF_SAMPLERATE:
 		if (g_variant_get_uint64(data) > devc->limit_samplerate ||
-		    std_u64_idx(data, devc->model->samplerate_table, devc->model->samplerate_table_size) < 0) {
+		    std_u64_idx(data, devc->model->rates, devc->model->rate_count) < 0) {
 			devc->cur_samplerate = devc->limit_samplerate;
 			sr_warn("Reach limit or not supported, wrap to %uMHz.",
 				devc->limit_samplerate / SR_MHZ(1));
@@ -471,44 +370,32 @@ static int config_set(uint32_t key, GVariant *data,
 		}
 
 		break;
-	case SR_CONF_NUM_LOGIC_CHANNELS:
-		if (std_i32_idx(data, devc->model->samplechannel_table, devc->model->samplechannel_table_size) < 0) {
+	case SR_CONF_NUM_LOGIC_CHANNELS: {
+		int32_t chans[8];
+		unsigned int nchans = adapter_channels(devc->model, chans);
+		if (std_i32_idx(data, chans, nchans) < 0) {
 			devc->cur_samplechannel = devc->limit_samplechannel;
 			sr_warn("Reach limit or not supported, wrap to %uch.",
 				devc->limit_samplechannel);
 		} else {
 			devc->cur_samplechannel = g_variant_get_int32(data);
-
-			devc->limit_samplerate = devc->model->limit_samplerate_table[
-				std_i32_idx(g_variant_new_int32(devc->cur_samplechannel),
-					devc->model->samplechannel_table, devc->model->samplechannel_table_size)
-			];
-
+			devc->limit_samplerate = slogic_max_rate(devc->model,
+				devc->cur_samplechannel);
 			if (devc->cur_samplerate > devc->limit_samplerate)
 				devc->cur_samplerate = devc->limit_samplerate;
 		}
-		// [en|dis]able channels and dbg
-		{
-			for (GSList *l = devc->digital_group->channels; l;
-			     l = l->next) {
-				struct sr_channel *ch = l->data;
-				if (ch->type == 
-					SR_CHANNEL_LOGIC) { /* Might as well do this now, these
-                                               are static. */
-					ch->enabled = ch->index >= devc->cur_samplechannel ? FALSE : TRUE;
-				} else {
-					sr_warn("devc->digital_group->channels[%u] is not Logic?",
-						ch->index);
-				}
-				sr_dbg("\tch[%2u] %-3s:%d %sabled priv:%p.",
-				       ch->index, ch->name, ch->type,
-				       ch->enabled ? "en" : "dis", ch->priv);
-			}
+		/* enable exactly the selected channels */
+		for (GSList *l = devc->digital_group->channels; l; l = l->next) {
+			struct sr_channel *c = l->data;
+			if (c->type == SR_CHANNEL_LOGIC)
+				c->enabled = c->index < devc->cur_samplechannel;
 		}
 		break;
+	}
 	case SR_CONF_PATTERN_MODE:
 		devc->cur_pattern_mode_idx =
-			std_str_idx(data, ARRAY_AND_SIZE(patterns));
+			std_str_idx(data, (const char **)slogic_pattern_names,
+				SLOGIC_PATTERN_COUNT);
 		if (devc->cur_pattern_mode_idx < 0)
 			devc->cur_pattern_mode_idx = 0;
 		/* Applied together with channel/rate/vref at acquisition start
@@ -530,34 +417,35 @@ static int config_set(uint32_t key, GVariant *data,
 
 int config_channel_set(const struct sr_dev_inst *sdi, struct sr_channel *ch, unsigned int changes) {
 	struct dev_context *devc = sdi ? (sdi->priv) : NULL;
-	if(!devc || !devc->model || !devc->model->samplechannel_table || !devc->model->limit_samplerate_table){
+	int32_t chans[8];
+	unsigned int nchans, i;
+	int32_t new_samplechannel;
+	GSList *l;
+
+	(void)ch;
+	if (!devc || !devc->model)
 		return SR_ERR;
-	}
-	
-	if(changes != SR_CHANNEL_SET_ENABLED){
+	if (changes != SR_CHANNEL_SET_ENABLED)
 		return SR_OK;
-	}
-	
-	int32_t new_samplechannel = devc->model->samplechannel_table[0];
-	for (GSList *l = devc->digital_group->channels; l;l = l->next) {
-		struct sr_channel *ch = l->data;
-		if(!ch->enabled || ch->index < new_samplechannel){
+
+	nchans = adapter_channels(devc->model, chans);
+	new_samplechannel = chans[0];
+	for (l = devc->digital_group->channels; l; l = l->next) {
+		struct sr_channel *c = l->data;
+		if (!c->enabled || (int32_t)c->index < new_samplechannel)
 			continue;
-		}
-		for(unsigned int i = 0; i < devc->model->samplerate_table_size; i++){
-			if(devc->model->samplechannel_table[i] > ch->index){
-				new_samplechannel = devc->model->samplechannel_table[i];
+		for (i = 0; i < nchans; i++) {
+			if (chans[i] > (int32_t)c->index) {
+				new_samplechannel = chans[i];
 				break;
 			}
 		}
 	}
 
-	if(new_samplechannel > devc->cur_samplechannel){
+	if (new_samplechannel > devc->cur_samplechannel) {
 		devc->cur_samplechannel = new_samplechannel;
-		devc->limit_samplerate = devc->model->limit_samplerate_table[
-				std_i32_idx(g_variant_new_int32(devc->cur_samplechannel),
-					devc->model->samplechannel_table, devc->model->samplechannel_table_size)
-			];
+		devc->limit_samplerate = slogic_max_rate(devc->model,
+			devc->cur_samplechannel);
 		if (devc->cur_samplerate > devc->limit_samplerate)
 			devc->cur_samplerate = devc->limit_samplerate;
 	}
@@ -583,19 +471,23 @@ static int config_list(uint32_t key, GVariant **data,
 				      devopts);
 		break;
 	case SR_CONF_SAMPLERATE:
-		*data = std_gvar_samplerates(
-			devc->model->samplerate_table,
-			1 + std_u64_idx(g_variant_new_uint64(
-						devc->limit_samplerate),
-					devc->model->samplerate_table, devc->model->samplerate_table_size));
-		if (NULL == devc->model)
+		if (!devc->model) {
 			ret = SR_ERR_ARG;
+			break;
+		}
+		*data = std_gvar_samplerates(devc->model->rates,
+			1 + std_u64_idx(g_variant_new_uint64(devc->limit_samplerate),
+				devc->model->rates, devc->model->rate_count));
 		break;
-	case SR_CONF_NUM_LOGIC_CHANNELS:
-		*data = std_gvar_array_i32(devc->model->samplechannel_table, devc->model->samplechannel_table_size);
+	case SR_CONF_NUM_LOGIC_CHANNELS: {
+		int32_t chans[8];
+		unsigned int nchans = adapter_channels(devc->model, chans);
+		*data = std_gvar_array_i32(chans, nchans);
 		break;
+	}
 	case SR_CONF_PATTERN_MODE:
-		*data = g_variant_new_strv(ARRAY_AND_SIZE(patterns));
+		*data = g_variant_new_strv(slogic_pattern_names,
+			SLOGIC_PATTERN_COUNT);
 		break;
 	case SR_CONF_TRIGGER_MATCH:
 		*data = std_gvar_array_i32(ARRAY_AND_SIZE(trigger_matches));
@@ -662,11 +554,13 @@ static void adapter_transport(const struct sr_dev_inst *sdi, slogic_transport *t
 	t->control_read = adapter_ctrl_read;
 }
 
-static const slogic_model *adapter_model(const struct sr_dev_inst *sdi)
+static unsigned int adapter_channels(const slogic_model *m, int32_t *out)
 {
-	struct dev_context *devc = sdi->priv;
+	size_t i;
 
-	return slogic_model_for_pid(devc->model->pid);
+	for (i = 0; i < m->limit_count; i++)
+		out[i] = m->limits[i].channels;
+	return (unsigned int)m->limit_count;
 }
 
 static void adapter_config(const struct sr_dev_inst *sdi, slogic_config *c)
@@ -682,7 +576,7 @@ static void adapter_config(const struct sr_dev_inst *sdi, slogic_config *c)
 	};
 }
 
-static void slogic_submit_raw_data(void *data, size_t len,
+SR_PRIV void slogic_submit_raw_data(void *data, size_t len,
 				   const struct sr_dev_inst *sdi)
 {
 	struct dev_context *devc = sdi->priv;
@@ -801,113 +695,40 @@ static inline void clear_ep(const struct sr_dev_inst *sdi)
 	sr_dbg("Cleared EP: 0x%02x", ep);
 }
 
-/* SLogic Combo 8 — the start command carries rate and channel count. */
-static int slogic_combo8_remote_run(const struct sr_dev_inst *sdi)
+/* Reset/start/stop dispatch onto the shared core (Combo 8 vs U3 handled inside
+ * it). devc->model is the core model, so no per-model function table is needed. */
+static int slogic_dev_reset(const struct sr_dev_inst *sdi)
 {
+	struct dev_context *devc = sdi->priv;
+	slogic_transport t;
+
+	adapter_transport(sdi, &t);
+	return slogic_reset(devc->model, &t) == SLOGIC_OK ? SR_OK : SR_ERR;
+}
+
+SR_PRIV int slogic_dev_start(const struct sr_dev_inst *sdi)
+{
+	struct dev_context *devc = sdi->priv;
 	slogic_transport t;
 	slogic_config c;
 
 	adapter_transport(sdi, &t);
 	adapter_config(sdi, &c);
-	return slogic_run(adapter_model(sdi), &t, &c) == SLOGIC_OK ?
-		SR_OK : SR_ERR;
-}
-
-static int slogic_combo8_remote_stop(const struct sr_dev_inst *sdi)
-{
-	/* Combo 8 has no reliable stop command; draining the EP is the stop. */
-	clear_ep(sdi);
-	return SR_OK;
-}
-
-/* SLogic16U3 / SLogic32U3 — U3 register/AUX protocol; shared core in slogic/. */
-static int slogic16U3_remote_reset(const struct sr_dev_inst *sdi)
-{
-	slogic_transport t;
-
-	adapter_transport(sdi, &t);
-	return slogic_reset(adapter_model(sdi), &t) == SLOGIC_OK ? SR_OK : SR_ERR;
-}
-
-static int slogic16U3_remote_run(const struct sr_dev_inst *sdi)
-{
-	slogic_transport t;
-	slogic_config c;
-	const slogic_model *m = adapter_model(sdi);
-
-	adapter_transport(sdi, &t);
-	adapter_config(sdi, &c);
-	if (slogic_configure(m, &t, &c) != SLOGIC_OK)
+	if (slogic_configure(devc->model, &t, &c) != SLOGIC_OK)
 		return SR_ERR;
-	return slogic_run(m, &t, &c) == SLOGIC_OK ? SR_OK : SR_ERR;
+	return slogic_run(devc->model, &t, &c) == SLOGIC_OK ? SR_OK : SR_ERR;
 }
 
-static int slogic16U3_remote_stop(const struct sr_dev_inst *sdi)
+SR_PRIV int slogic_dev_stop(const struct sr_dev_inst *sdi)
 {
+	struct dev_context *devc = sdi->priv;
 	slogic_transport t;
 
+	if (devc->model->proto == SLOGIC_PROTO_COMBO8) {
+		/* No reliable stop command; draining the EP is the stop. */
+		clear_ep(sdi);
+		return SR_OK;
+	}
 	adapter_transport(sdi, &t);
-	return slogic_stop(adapter_model(sdi), &t) == SLOGIC_OK ? SR_OK : SR_ERR;
+	return slogic_stop(devc->model, &t) == SLOGIC_OK ? SR_OK : SR_ERR;
 }
-
-static const struct sr_slogic_model support_models[] = {
-    {
-        .name = "Sogic Combo 8",
-        .pid = 0x0300,
-        .ep_in = 0x01 | LIBUSB_ENDPOINT_IN,
-        .max_bandwidth = SR_MHZ(320),
-		.samplerate_table = samplerates_slogiccombo8,
-		.samplerate_table_size = ARRAY_SIZE(samplerates_slogiccombo8),
-		.samplechannel_table = samplechannels_slogiccombo8,
-		.samplechannel_table_size = ARRAY_SIZE(samplechannels_slogiccombo8),
-		.limit_samplerate_table = limit_samplerates_slogiccombo8,
-        .operation =
-            {
-                .remote_reset = NULL,
-                .remote_run = slogic_combo8_remote_run,
-                .remote_stop = slogic_combo8_remote_stop,
-            },
-        .submit_raw_data = slogic_submit_raw_data,
-    },
-    {
-        .name = "SLogic16U3",
-        .pid = 0x3031,
-        .ep_in = 0x02 | LIBUSB_ENDPOINT_IN,
-        .max_bandwidth = SR_MHZ(3200),
-		.samplerate_table = samplerates_slogic16u3,
-		.samplerate_table_size = ARRAY_SIZE(samplerates_slogic16u3),
-		.samplechannel_table = samplechannels_slogic16u3,
-		.samplechannel_table_size = ARRAY_SIZE(samplechannels_slogic16u3),
-		.limit_samplerate_table = limit_samplerates_slogic16u3,
-        .operation =
-            {
-                .remote_reset = slogic16U3_remote_reset,
-                .remote_run = slogic16U3_remote_run,
-                .remote_stop = slogic16U3_remote_stop,
-            },
-        .submit_raw_data = slogic_submit_raw_data,
-    },
-    {
-        .name = "SLogic32U3",
-        .pid = 0x3032,
-        .ep_in = 0x02 | LIBUSB_ENDPOINT_IN,
-        .max_bandwidth = SR_MHZ(6400),
-		.samplerate_table = samplerates_slogic32u3,
-		.samplerate_table_size = ARRAY_SIZE(samplerates_slogic32u3),
-		.samplechannel_table = samplechannels_slogic32u3,
-		.samplechannel_table_size = ARRAY_SIZE(samplechannels_slogic32u3),
-		.limit_samplerate_table = limit_samplerates_slogic32u3,
-        .operation =
-            {
-                .remote_reset = slogic16U3_remote_reset,
-                .remote_run = slogic16U3_remote_run,
-                .remote_stop = slogic16U3_remote_stop,
-            },
-        .submit_raw_data = slogic_submit_raw_data,
-    },
-    {
-        .name = NULL,
-        .pid = 0x0000,
-    }};
-
-static struct sr_slogic_model *const support_models_ptr = &support_models[0];

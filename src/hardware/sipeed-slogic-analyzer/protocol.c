@@ -220,7 +220,7 @@ static int handle_events(int fd, int revents, void *cb_data)
 			if (freed) {
 				sr_dbg("Freed %d transfers.", freed);
 			} else {
-				if ((devc->model->operation.remote_stop(sdi)) < 0) {
+				if (slogic_dev_stop(sdi) < 0) {
 					sr_err("Unhandled `CMD_STOP`");
 				}
 				if (!g_async_queue_length(
@@ -250,7 +250,7 @@ static int handle_events(int fd, int revents, void *cb_data)
 		GByteArray *array = g_async_queue_try_pop(devc->raw_data_queue);
 		if (array != NULL) {
 			if (devc->trigger_fired) {
-				devc->model->submit_raw_data(
+				slogic_submit_raw_data(
 					array->data, array->len, sdi);
 			} else if (devc->stl) {
 				extern int slogic_soft_trigger_raw_data(void *data, size_t len, const struct sr_dev_inst *sdi);
@@ -362,7 +362,7 @@ SR_PRIV int sipeed_slogic_acquisition_start(const struct sr_dev_inst *sdi)
 	drvc = di->context;
 	usb = sdi->conn;
 
-	if ((ret = devc->model->operation.remote_stop(sdi)) < 0) {
+	if ((ret = slogic_dev_stop(sdi)) < 0) {
 		sr_err("Unhandled `CMD_STOP`");
 		return ret;
 	}
@@ -461,7 +461,7 @@ SR_PRIV int sipeed_slogic_acquisition_start(const struct sr_dev_inst *sdi)
 		devc->trigger_fired = FALSE;
 	}
 
-	if ((ret = devc->model->operation.remote_run(sdi)) < 0) {
+	if ((ret = slogic_dev_start(sdi)) < 0) {
 		sr_err("Unhandled `CMD_RUN`");
 		sipeed_slogic_acquisition_stop(sdi);
 		return ret;
