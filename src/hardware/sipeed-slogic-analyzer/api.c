@@ -21,8 +21,13 @@
 #include <config.h>
 
 #include "protocol.h"
+#include "slogic/slogic.h"
 
-static int slogic16U3_remote_test_mode(const struct sr_dev_inst *sdi, uint32_t mode);
+/* Bridge the vendored libslogic core (slogic/) to libsigrok's libusb handle.
+ * The register/AUX protocol, model tables, samplerate search, VTH->DAC and the
+ * Combo 8 start command all live in the shared core now; this file keeps only
+ * the libsigrok-specific surface: scan/config, the sample-major data shaping,
+ * and the driver-side soft trigger. */
 
 static const uint32_t scanopts[] = {
 	SR_CONF_CONN,
@@ -157,7 +162,7 @@ static const int32_t trigger_matches[] = {
 
 static struct sr_dev_driver sipeed_slogic_analyzer_driver_info;
 
-static struct slogic_model *const support_models_ptr;
+static struct sr_slogic_model *const support_models_ptr;
 
 static gpointer libusb_event_thread_func(gpointer user_data)
 {
@@ -188,7 +193,7 @@ static GSList *scan(struct sr_dev_driver *di, GSList *options)
 	struct drv_context *drvc;
 	struct dev_context *devc;
 
-	struct slogic_model *model;
+	struct sr_slogic_model *model;
 	struct sr_config *option;
 	struct libusb_device_descriptor des;
 	GSList *devices;
@@ -506,20 +511,8 @@ static int config_set(uint32_t key, GVariant *data,
 			std_str_idx(data, ARRAY_AND_SIZE(patterns));
 		if (devc->cur_pattern_mode_idx < 0)
 			devc->cur_pattern_mode_idx = 0;
-		if (devc->model == &support_models_ptr[0]) {
-			sr_warn("unsupported model: %s.", devc->model->name);
-			break;
-		}
-		if (devc->cur_pattern_mode_idx == PATTERN_MODE_NORMAL) {
-			if (devc->model->operation.remote_reset)
-				devc->model->operation.remote_reset(sdi);
-			slogic16U3_remote_test_mode(sdi, 0x0);
-			sr_dbg("reset model: %s success.", devc->model->name);
-		} else if (devc->cur_pattern_mode_idx == PATTERN_MODE_TEST_HARDWARE_USB_MAX_SPEED) {
-			slogic16U3_remote_test_mode(sdi, 0x1);
-		} else if (devc->cur_pattern_mode_idx == PATTERN_MODE_TEST_HARDWARE_EMU_DATA) {
-			slogic16U3_remote_test_mode(sdi, 0x2);
-		}
+		/* Applied together with channel/rate/vref at acquisition start
+		 * (slogic_configure, canonical order per protocol.md 6.7). */
 		break;
 	case SR_CONF_LIMIT_SAMPLES:
 		devc->cur_limit_samples = g_variant_get_uint64(data);
@@ -638,88 +631,55 @@ static struct sr_dev_driver sipeed_slogic_analyzer_driver_info = {
 };
 SR_REGISTER_DEV_DRIVER(sipeed_slogic_analyzer_driver_info);
 
-static int slogic_usb_control_write(const struct sr_dev_inst *sdi,
-				    uint8_t request, uint16_t value,
-				    uint16_t index, uint8_t *data, size_t len,
-				    int timeout)
+/* --- bridge to the vendored libslogic core (slogic/) --- */
+
+static int adapter_ctrl_write(void *ctx, uint8_t b_request, uint16_t w_value,
+			      uint16_t w_index, const uint8_t *data,
+			      uint16_t len, unsigned timeout_ms)
 {
-	int ret;
-	struct dev_context *devc;
-	struct sr_usb_dev_inst *usb;
+	struct sr_usb_dev_inst *usb = ctx;
 
-	devc = sdi->priv;
-	usb = sdi->conn;
-
-	sr_spew("%s: req:%u value:%u index:%u %p:%u in %dms.", __func__,
-		request, value, index, data, len, timeout);
-	if (!data && len) {
-		sr_warn("%s: Nothing to write although len(%u)>0!", __func__,
-			len);
-		len = 0;
-	} else if (len & 0x3) {
-		size_t len_aligndup = (len + 0x3) & (~0x3);
-		sr_warn("%s: Align up to %u(from %u)!", __func__, len_aligndup,
-			len);
-		len = len_aligndup;
-	}
-
-	ret = 0;
-	for (size_t i = 0; i < len; i += 4) {
-		ret += libusb_control_transfer(
-			usb->devhdl,
-			LIBUSB_REQUEST_TYPE_VENDOR | LIBUSB_ENDPOINT_OUT,
-			request, value + i, index, (unsigned char *)data + i, 4,
-			timeout);
-		if (ret < 0) {
-			sr_err("%s: failed(libusb: %s)!", __func__,
-			       libusb_error_name(ret));
-			return SR_ERR_NA;
-		}
-	}
-
-	return ret;
+	return libusb_control_transfer(usb->devhdl,
+		LIBUSB_REQUEST_TYPE_VENDOR | LIBUSB_ENDPOINT_OUT, b_request,
+		w_value, w_index, (unsigned char *)data, len, (int)timeout_ms);
 }
 
-static int slogic_usb_control_read(const struct sr_dev_inst *sdi,
-				   uint8_t request, uint16_t value,
-				   uint16_t index, uint8_t *data, size_t len,
-				   int timeout)
+static int adapter_ctrl_read(void *ctx, uint8_t b_request, uint16_t w_value,
+			     uint16_t w_index, uint8_t *data, uint16_t len,
+			     unsigned timeout_ms)
 {
-	int ret;
-	struct dev_context *devc;
-	struct sr_usb_dev_inst *usb;
+	struct sr_usb_dev_inst *usb = ctx;
 
-	devc = sdi->priv;
-	usb = sdi->conn;
+	return libusb_control_transfer(usb->devhdl,
+		LIBUSB_REQUEST_TYPE_VENDOR | LIBUSB_ENDPOINT_IN, b_request,
+		w_value, w_index, data, len, (int)timeout_ms);
+}
 
-	sr_spew("%s: req:%u value:%u index:%u %p:%u in %dms.", __func__,
-		request, value, index, data, len, timeout);
-	if (!data && len) {
-		sr_err("%s: Can't read to NULL while len(%u)>0!", __func__,
-		       len);
-		return SR_ERR_ARG;
-	} else if (len & 0x3) {
-		size_t len_aligndup = (len + 0x3) & (~0x3);
-		sr_warn("%s: Align up to %u(from %u)!", __func__, len_aligndup,
-			len);
-		len = len_aligndup;
-	}
+static void adapter_transport(const struct sr_dev_inst *sdi, slogic_transport *t)
+{
+	t->ctx = sdi->conn; /* struct sr_usb_dev_inst */
+	t->control_write = adapter_ctrl_write;
+	t->control_read = adapter_ctrl_read;
+}
 
-	ret = 0;
-	for (size_t i = 0; i < len; i += 4) {
-		ret += libusb_control_transfer(
-			usb->devhdl,
-			LIBUSB_REQUEST_TYPE_VENDOR | LIBUSB_ENDPOINT_IN,
-			request, value + i, index, (unsigned char *)data + i, 4,
-			timeout);
-		if (ret < 0) {
-			sr_err("%s: failed(libusb: %s)!", __func__,
-			       libusb_error_name(ret));
-			return SR_ERR_NA;
-		}
-	}
+static const slogic_model *adapter_model(const struct sr_dev_inst *sdi)
+{
+	struct dev_context *devc = sdi->priv;
 
-	return ret;
+	return slogic_model_for_pid(devc->model->pid);
+}
+
+static void adapter_config(const struct sr_dev_inst *sdi, slogic_config *c)
+{
+	struct dev_context *devc = sdi->priv;
+
+	*c = (slogic_config){
+		.channel_count = devc->cur_samplechannel,
+		.samplerate_hz = devc->cur_samplerate,
+		.threshold_v = (devc->voltage_threshold[0] +
+				devc->voltage_threshold[1]) / 2.0,
+		.pattern_mode = devc->cur_pattern_mode_idx,
+	};
 }
 
 static void slogic_submit_raw_data(void *data, size_t len,
@@ -824,21 +784,6 @@ int slogic_soft_trigger_raw_data(void *data, size_t len,
 	return ret;
 }
 
-// #define __USE_MISC 1
-// #include <endian.h>
-static inline uint16_t htole16(uint16_t value)
-{
-	const union {
-		uint16_t val;
-		uint8_t bytes[2];
-	} u = { .val = 0x1234 };
-	if (u.bytes[0] == 0x34) { // __LITTLE_ENDIAN
-		return value;
-	} else {
-		return ((value & 0xFF) << 8) | ((value >> 8) & 0xFF);
-	}
-}
-
 static inline void clear_ep(const struct sr_dev_inst *sdi)
 {
 	struct dev_context *devc = sdi->priv;
@@ -856,325 +801,56 @@ static inline void clear_ep(const struct sr_dev_inst *sdi)
 	sr_dbg("Cleared EP: 0x%02x", ep);
 }
 
-/* SLogic Combo 8 start */
-#pragma pack(push, 1)
-struct cmd_start_acquisition {
-	union {
-		struct {
-			uint8_t sample_rate_l;
-			uint8_t sample_rate_h;
-		};
-		uint16_t sample_rate;
-	};
-	uint8_t sample_channel;
-};
-#pragma pack(pop)
-
-#define CMD_START 0xb1
-#define CMD_STOP 0xb3
-
+/* SLogic Combo 8 — the start command carries rate and channel count. */
 static int slogic_combo8_remote_run(const struct sr_dev_inst *sdi)
 {
-	struct dev_context *devc = sdi->priv;
-	const struct cmd_start_acquisition cmd_run = {
-		.sample_rate = htole16(devc->cur_samplerate /
-				       SR_MHZ(1)), // force little endian
-		.sample_channel = devc->cur_samplechannel,
-	};
-	return slogic_usb_control_write(sdi, CMD_START, 0x0000, 0x0000,
-					(uint8_t *)&cmd_run, sizeof(cmd_run),
-					500);
+	slogic_transport t;
+	slogic_config c;
+
+	adapter_transport(sdi, &t);
+	adapter_config(sdi, &c);
+	return slogic_run(adapter_model(sdi), &t, &c) == SLOGIC_OK ?
+		SR_OK : SR_ERR;
 }
 
 static int slogic_combo8_remote_stop(const struct sr_dev_inst *sdi)
 {
-	struct dev_context *devc = sdi->priv;
-	struct sr_usb_dev_inst *usb = sdi->conn;
+	/* Combo 8 has no reliable stop command; draining the EP is the stop. */
 	clear_ep(sdi);
 	return SR_OK;
-	/* not stable, but can be ignored */
-	// int ret = slogic_usb_control_write(sdi, CMD_STOP, 0x0000, 0x0000, NULL, 0,
-	// 500); clear_ep(sdi); return ret;
-}
-/* SLogic Combo 8 end */
-
-/* SLogic16U3 start */
-#define SLOGIC16U3_CONTROL_IN_REQ_REG_READ 0x00
-#define SLOGIC16U3_CONTROL_OUT_REQ_REG_WRITE 0x01
-
-#define SLOGIC16U3_R32_CTRL 0x0004
-#define SLOGIC16U3_R32_FLAG 0x0008
-#define SLOGIC16U3_R32_AUX 0x000c
-
-static int slogic16U3_remote_test_mode(const struct sr_dev_inst *sdi, uint32_t mode) {
-	struct dev_context *devc = sdi->priv;
-	uint8_t cmd_aux[64] = { 0 }; // configure aux
-
-	{
-		size_t retry = 0;
-		memset(cmd_aux, 0, sizeof(cmd_aux));
-		*(uint32_t *)(cmd_aux) = 0x00000005;
-		slogic_usb_control_write(sdi,
-					 SLOGIC16U3_CONTROL_OUT_REQ_REG_WRITE,
-					 SLOGIC16U3_R32_AUX, 0x0000, cmd_aux, 4,
-					 500);
-		do {
-			slogic_usb_control_read(
-				sdi, SLOGIC16U3_CONTROL_IN_REQ_REG_READ,
-				SLOGIC16U3_R32_AUX, 0x0000, cmd_aux, 4, 500);
-			sr_dbg("[%u]read aux testmode: %08x.", retry,
-			       ((uint32_t *)cmd_aux)[0]);
-			retry += 1;
-			if (retry > 5)
-				return SR_ERR_TIMEOUT;
-		} while (!(cmd_aux[2] & 0x01));
-
-		sr_dbg("test_mode length: %u.", (*(uint16_t *)cmd_aux) >> 9);
-		slogic_usb_control_read(sdi, SLOGIC16U3_CONTROL_IN_REQ_REG_READ,
-					SLOGIC16U3_R32_AUX + 4, 0x0000,
-					cmd_aux + 4,
-					(*(uint16_t *)cmd_aux) >> 9, 500);
-
-		sr_dbg("aux rd: %08x %08x.", ((uint32_t *)cmd_aux)[0], ((uint32_t *)(cmd_aux + 4))[0]);
-
-		((uint32_t *)(cmd_aux + 4))[0] = mode;
-
-		sr_dbg("aux wr: %08x %08x.", ((uint32_t *)cmd_aux)[0], ((uint32_t *)(cmd_aux + 4))[0]);
-		slogic_usb_control_write(sdi,
-					 SLOGIC16U3_CONTROL_OUT_REQ_REG_WRITE,
-					 SLOGIC16U3_R32_AUX + 4, 0x0000,
-					 cmd_aux + 4,
-					 (*(uint16_t *)cmd_aux) >> 9, 500);
-
-		slogic_usb_control_read(sdi, SLOGIC16U3_CONTROL_IN_REQ_REG_READ,
-					SLOGIC16U3_R32_AUX + 4, 0x0000,
-					cmd_aux + 4,
-					(*(uint16_t *)cmd_aux) >> 9, 500);
-		sr_dbg("aux rd: %08x %08x.", ((uint32_t *)cmd_aux)[0], ((uint32_t *)(cmd_aux + 4))[0]);
-
-		if (mode != *(uint32_t *)(cmd_aux + 4)) {
-			sr_dbg("Failed to configure test_mode.");
-		} else {
-			sr_dbg("Succeed to configure test_mode.");
-		}
-	}
-
-	return SR_OK;
 }
 
-static int slogic16U3_remote_reset(const struct sr_dev_inst *sdi) {
-	struct dev_context *devc = sdi->priv;
-	const uint8_t cmd_rst[] = { 0x02, 0x00, 0x00, 0x00 };
-	const uint8_t cmd_derst[] = { 0x00, 0x00, 0x00, 0x00 };
+/* SLogic16U3 / SLogic32U3 — U3 register/AUX protocol; shared core in slogic/. */
+static int slogic16U3_remote_reset(const struct sr_dev_inst *sdi)
+{
+	slogic_transport t;
 
-	slogic_usb_control_write(sdi, SLOGIC16U3_CONTROL_OUT_REQ_REG_WRITE,
-		SLOGIC16U3_R32_CTRL, 0x0000,
-		ARRAY_AND_SIZE(cmd_rst), 500);
-
-	return slogic_usb_control_write(sdi, SLOGIC16U3_CONTROL_OUT_REQ_REG_WRITE,
-				 SLOGIC16U3_R32_CTRL, 0x0000,
-				 ARRAY_AND_SIZE(cmd_derst), 500);
+	adapter_transport(sdi, &t);
+	return slogic_reset(adapter_model(sdi), &t) == SLOGIC_OK ? SR_OK : SR_ERR;
 }
 
 static int slogic16U3_remote_run(const struct sr_dev_inst *sdi)
 {
-	struct dev_context *devc = sdi->priv;
-	const uint8_t cmd_run[] = { 0x01, 0x00, 0x00, 0x00 };
-	uint8_t cmd_aux[64] = { 0 }; // configure aux
+	slogic_transport t;
+	slogic_config c;
+	const slogic_model *m = adapter_model(sdi);
 
-	{
-		size_t retry = 0;
-		memset(cmd_aux, 0, sizeof(cmd_aux));
-		*(uint32_t *)(cmd_aux) = 0x00000001;
-		slogic_usb_control_write(sdi,
-					 SLOGIC16U3_CONTROL_OUT_REQ_REG_WRITE,
-					 SLOGIC16U3_R32_AUX, 0x0000, cmd_aux, 4,
-					 500);
-		do {
-			slogic_usb_control_read(
-				sdi, SLOGIC16U3_CONTROL_IN_REQ_REG_READ,
-				SLOGIC16U3_R32_AUX, 0x0000, cmd_aux, 4, 500);
-			sr_dbg("[%u]read aux channel: %08x.", retry,
-			       ((uint32_t *)cmd_aux)[0]);
-			retry += 1;
-			if (retry > 5)
-				return SR_ERR_TIMEOUT;
-		} while (!(cmd_aux[2] & 0x01));
-		sr_dbg("channel length: %u.", (*(uint16_t *)cmd_aux) >> 9);
-		slogic_usb_control_read(sdi, SLOGIC16U3_CONTROL_IN_REQ_REG_READ,
-					SLOGIC16U3_R32_AUX + 4, 0x0000,
-					cmd_aux + 4,
-					(*(uint16_t *)cmd_aux) >> 9, 500);
-
-		sr_dbg("aux rd: %08x %08x.", ((uint32_t *)cmd_aux)[0], ((uint32_t *)(cmd_aux + 4))[0]);
-
-		*(uint32_t *)(cmd_aux + 4) = (1ull << devc->cur_samplechannel) - 1;
-
-		sr_dbg("aux wr: %08x %08x.", ((uint32_t *)cmd_aux)[0], ((uint32_t *)(cmd_aux + 4))[0]);
-		slogic_usb_control_write(sdi,
-					 SLOGIC16U3_CONTROL_OUT_REQ_REG_WRITE,
-					 SLOGIC16U3_R32_AUX + 4, 0x0000,
-					 cmd_aux + 4,
-					 (*(uint16_t *)cmd_aux) >> 9, 500);
-
-		slogic_usb_control_read(sdi, SLOGIC16U3_CONTROL_IN_REQ_REG_READ,
-					SLOGIC16U3_R32_AUX + 4, 0x0000,
-					cmd_aux + 4,
-					(*(uint16_t *)cmd_aux) >> 9, 500);
-		sr_dbg("aux rd: %08x %08x.", ((uint32_t *)cmd_aux)[0], ((uint32_t *)(cmd_aux + 4))[0]);
-
-		if ((1ull << devc->cur_samplechannel) - 1 !=
-		    *(uint32_t *)(cmd_aux + 4)) {
-			sr_dbg("Failed to configure sample channel.");
-		} else {
-			sr_dbg("Succeed to configure sample channel.");
-		}
-	}
-
-	{
-		size_t retry = 0;
-		memset(cmd_aux, 0, sizeof(cmd_aux));
-		*(uint32_t *)(cmd_aux) = 0x00000002;
-		slogic_usb_control_write(sdi,
-					 SLOGIC16U3_CONTROL_OUT_REQ_REG_WRITE,
-					 SLOGIC16U3_R32_AUX, 0x0000, cmd_aux, 4,
-					 500);
-		do {
-			slogic_usb_control_read(
-				sdi, SLOGIC16U3_CONTROL_IN_REQ_REG_READ,
-				SLOGIC16U3_R32_AUX, 0x0000, cmd_aux, 4, 500);
-			sr_dbg("[%u]read aux samplerate: %08x.", retry,
-			       ((uint32_t *)cmd_aux)[0]);
-			retry += 1;
-			if (retry > 5)
-				return SR_ERR_TIMEOUT;
-		} while (!(cmd_aux[2] & 0x01));
-		sr_dbg("samplerate length: %u.", (*(uint16_t *)cmd_aux) >> 9);
-
-		while (((uint16_t *)(cmd_aux + 4))[0] <= 1) {
-			slogic_usb_control_read(
-				sdi, SLOGIC16U3_CONTROL_IN_REQ_REG_READ,
-				SLOGIC16U3_R32_AUX + 4, 0x0000, cmd_aux + 4,
-				(*(uint16_t *)cmd_aux) >> 9, 500);
-
-			sr_dbg("aux rd: %08x %x %u %u.", ((uint32_t *)cmd_aux)[0],
-			       ((uint16_t *)(cmd_aux + 4))[0],
-			       ((uint16_t *)(cmd_aux + 4))[1],
-			       ((uint32_t *)(cmd_aux + 4))[1]);
-
-			uint64_t base =
-				SR_MHZ(1) * ((uint16_t *)(cmd_aux + 4))[1];
-			if (base % devc->cur_samplerate) {
-				sr_dbg("Failed to configure samplerate from base[%u] %u.",
-				       ((uint16_t *)(cmd_aux + 4))[0], base);
-				((uint16_t *)(cmd_aux + 4))[0] += 1;
-				slogic_usb_control_write(
-					sdi,
-					SLOGIC16U3_CONTROL_OUT_REQ_REG_WRITE,
-					SLOGIC16U3_R32_AUX + 4, 0x0000,
-					cmd_aux + 4, 4, 500);
-				continue;
-			}
-			uint32_t div = base / devc->cur_samplerate;
-			((uint32_t *)(cmd_aux + 4))[1] = div-1;
-
-			sr_dbg("aux wr: %08x %x %u %u.", ((uint32_t *)cmd_aux)[0],
-			       ((uint16_t *)(cmd_aux + 4))[0],
-			       ((uint16_t *)(cmd_aux + 4))[1],
-			       ((uint32_t *)(cmd_aux + 4))[1]);
-			slogic_usb_control_write(
-				sdi, SLOGIC16U3_CONTROL_OUT_REQ_REG_WRITE,
-				SLOGIC16U3_R32_AUX + 4, 0x0000, cmd_aux + 4,
-				(*(uint16_t *)cmd_aux) >> 9, 500);
-
-			slogic_usb_control_read(
-				sdi, SLOGIC16U3_CONTROL_IN_REQ_REG_READ,
-				SLOGIC16U3_R32_AUX + 4, 0x0000, cmd_aux + 4,
-				(*(uint16_t *)cmd_aux) >> 9, 500);
-			sr_dbg("aux rd: %08x %x %u %u.", ((uint32_t *)cmd_aux)[0],
-			       ((uint16_t *)(cmd_aux + 4))[0],
-			       ((uint16_t *)(cmd_aux + 4))[1],
-			       ((uint32_t *)(cmd_aux + 4))[1]);
-			break;
-		}
-
-		if (((uint16_t *)(cmd_aux + 4))[0] <= 1) {
-			sr_dbg("Succeed to configure samplerate.");
-		} else {
-			sr_dbg("Failed to configure samplerate.");
-		}
-	}
-
-	{
-		size_t retry = 0;
-		memset(cmd_aux, 0, sizeof(cmd_aux));
-		*(uint32_t *)(cmd_aux) = 0x00000003;
-		slogic_usb_control_write(sdi,
-					 SLOGIC16U3_CONTROL_OUT_REQ_REG_WRITE,
-					 SLOGIC16U3_R32_AUX, 0x0000, cmd_aux, 4,
-					 500);
-		do {
-			slogic_usb_control_read(
-				sdi, SLOGIC16U3_CONTROL_IN_REQ_REG_READ,
-				SLOGIC16U3_R32_AUX, 0x0000, cmd_aux, 4, 500);
-			sr_dbg("[%u]read vref(/1024x1v6): %08x.", retry,
-			       ((uint32_t *)cmd_aux)[0]);
-			retry += 1;
-			if (retry > 5)
-				return SR_ERR_TIMEOUT;
-		} while (!(cmd_aux[2] & 0x01));
-		// *(uint16_t*)cmd_aux &= ~0xfe00;
-		// *(uint16_t*)cmd_aux |= 0x800;
-		sr_dbg("vref length: %u.", (*(uint16_t *)cmd_aux) >> 9);
-		slogic_usb_control_read(sdi, SLOGIC16U3_CONTROL_IN_REQ_REG_READ,
-					SLOGIC16U3_R32_AUX + 4, 0x0000,
-					cmd_aux + 4,
-					(*(uint16_t *)cmd_aux) >> 9, 500);
-
-		sr_dbg("aux rd: %08x %08x.", ((uint32_t *)cmd_aux)[0], ((uint32_t *)(cmd_aux + 4))[0]);
-
-		((uint32_t *)(cmd_aux + 4))[0] =
-			(uint32_t)((devc->voltage_threshold[0] +
-				    devc->voltage_threshold[1]) /
-				   2 / 3.33 / 2 * 1024);
-
-		sr_dbg("aux wr: %08x %08x.", ((uint32_t *)cmd_aux)[0], ((uint32_t *)(cmd_aux + 4))[0]);
-		slogic_usb_control_write(sdi,
-					 SLOGIC16U3_CONTROL_OUT_REQ_REG_WRITE,
-					 SLOGIC16U3_R32_AUX + 4, 0x0000,
-					 cmd_aux + 4,
-					 (*(uint16_t *)cmd_aux) >> 9, 500);
-
-		slogic_usb_control_read(sdi, SLOGIC16U3_CONTROL_IN_REQ_REG_READ,
-					SLOGIC16U3_R32_AUX + 4, 0x0000,
-					cmd_aux + 4,
-					(*(uint16_t *)cmd_aux) >> 9, 500);
-		sr_dbg("aux rd: %08x %08x.", ((uint32_t *)cmd_aux)[0], ((uint32_t *)(cmd_aux + 4))[0]);
-
-		if (1024 != *(uint32_t *)(cmd_aux + 4)) {
-			sr_dbg("Failed to configure vref.");
-		} else {
-			sr_dbg("Succeed to configure vref.");
-		}
-	}
-
-	return slogic_usb_control_write(sdi,
-					SLOGIC16U3_CONTROL_OUT_REQ_REG_WRITE,
-					SLOGIC16U3_R32_CTRL, 0x0000,
-					ARRAY_AND_SIZE(cmd_run), 500);
+	adapter_transport(sdi, &t);
+	adapter_config(sdi, &c);
+	if (slogic_configure(m, &t, &c) != SLOGIC_OK)
+		return SR_ERR;
+	return slogic_run(m, &t, &c) == SLOGIC_OK ? SR_OK : SR_ERR;
 }
 
 static int slogic16U3_remote_stop(const struct sr_dev_inst *sdi)
 {
-	const uint8_t cmd_stop[] = { 0x00, 0x00, 0x00, 0x00 };
-	return slogic_usb_control_write(sdi,
-					SLOGIC16U3_CONTROL_OUT_REQ_REG_WRITE,
-					SLOGIC16U3_R32_CTRL, 0x0000,
-					ARRAY_AND_SIZE(cmd_stop), 500);
-}
-/* SLogic16U3 end */
+	slogic_transport t;
 
-static const struct slogic_model support_models[] = {
+	adapter_transport(sdi, &t);
+	return slogic_stop(adapter_model(sdi), &t) == SLOGIC_OK ? SR_OK : SR_ERR;
+}
+
+static const struct sr_slogic_model support_models[] = {
     {
         .name = "Sogic Combo 8",
         .pid = 0x0300,
@@ -1234,4 +910,4 @@ static const struct slogic_model support_models[] = {
         .pid = 0x0000,
     }};
 
-static struct slogic_model *const support_models_ptr = &support_models[0];
+static struct sr_slogic_model *const support_models_ptr = &support_models[0];

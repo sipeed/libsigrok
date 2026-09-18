@@ -41,7 +41,7 @@ enum {
 	PATTERN_MODE_TEST_HARDWARE_EMU_DATA,
 };
 
-struct slogic_model {
+struct sr_slogic_model {
 	const char *name;
 	const uint16_t pid;
 	const uint8_t ep_in;
@@ -61,7 +61,7 @@ struct slogic_model {
 };
 
 struct dev_context {
-	const struct slogic_model *model;
+	const struct sr_slogic_model *model;
 
 	struct sr_channel_group *digital_group;
 
