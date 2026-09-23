@@ -22,6 +22,9 @@
 
 #include "protocol.h"
 
+static int submit_bulk_ring(const struct sr_dev_inst *sdi);
+static int restart_acquisition_after_stall(const struct sr_dev_inst *sdi);
+
 static void LIBUSB_CALL receive_transfer(struct libusb_transfer *transfer)
 {
 	int ret;
@@ -41,8 +44,6 @@ static void LIBUSB_CALL receive_transfer(struct libusb_transfer *transfer)
 		transfers_reached_time_now - devc->transfers_reached_time_start;
 
 	double expected_rate = devc->expected_rate_MBps;
-	double expected_transfer_duration =
-		(double)devc->per_transfer_nbytes / expected_rate;
 
 	devc->num_transfers_used -= 1;
 	devc->num_transfers_completed += 1;
@@ -119,7 +120,8 @@ static void LIBUSB_CALL receive_transfer(struct libusb_transfer *transfer)
 		if (!devc->trigger_fired)
 			devc->samples_got_nbytes = 0;
 
-		if (devc->samples_got_nbytes +
+		if (!devc->restart_pending &&
+		    devc->samples_got_nbytes +
 			    devc->num_transfers_used *
 				    devc->per_transfer_nbytes <
 		    devc->samples_need_nbytes) {
@@ -138,6 +140,13 @@ static void LIBUSB_CALL receive_transfer(struct libusb_transfer *transfer)
 		}
 	} break;
 
+	case LIBUSB_TRANSFER_CANCELLED:
+		/* Cancellation is expected while the ring drains for a stall
+		 * re-arm; only an unsolicited cancel is a real abort. */
+		if (!devc->restart_pending)
+			devc->acq_aborted = 1;
+		break;
+
 	case LIBUSB_TRANSFER_OVERFLOW:
 	case LIBUSB_TRANSFER_STALL:
 	case LIBUSB_TRANSFER_NO_DEVICE:
@@ -146,36 +155,40 @@ static void LIBUSB_CALL receive_transfer(struct libusb_transfer *transfer)
 		break;
 	}
 
-	double actual_rate = (double)devc->transfers_reached_nbytes_latest / transfers_reached_duration;
-	double average_rate = (double)devc->transfers_reached_nbytes / transfers_all_duration;
-	if (devc->num_transfers_completed > 1 &&
-	    ((double)transfers_reached_duration >
-		    (TRANSFERS_DURATION_TOLERANCE + 1) * expected_transfer_duration ||
-		actual_rate < expected_rate * (1.0 - TRANSFERS_DURATION_TOLERANCE) ||
-		average_rate < expected_rate * 0.95
-	    )
-	) {
-		devc->timeout_count += 1;
-	} else {
-		devc->timeout_count = 0;
+	/*
+	 * Stall watchdog + zero-progress RUN re-arm — shared slogic core policy
+	 * (all-logic canonical). Fold this completion's RAW received length into
+	 * the watcher (before the trigger trim). A RETRY_RUN verdict defers an
+	 * in-place re-arm to the session thread; ABORT ends the capture. Skip while
+	 * a re-arm is already pending — the ring is draining.
+	 */
+	if ((transfer->status == LIBUSB_TRANSFER_COMPLETED ||
+	     transfer->status == LIBUSB_TRANSFER_TIMED_OUT) &&
+	    !devc->restart_pending) {
+		slogic_verdict verdict = slogic_stream_watch(&devc->stream,
+			devc->transfers_reached_nbytes_latest,
+			transfers_reached_time_now, transfers_reached_duration);
+		switch (verdict) {
+		case SLOGIC_STREAM_WARN_SLOW:
+			sr_warn("USB link slower than the analyzer; "
+				"draining at the host's pace.");
+			break;
+		case SLOGIC_STREAM_RETRY_RUN:
+			sr_warn("USB stream did not start; re-arming hardware.");
+			devc->restart_pending = 1;
+			break;
+		case SLOGIC_STREAM_ABORT:
+			sr_err("Acquisition stall: aborting capture.");
+			devc->acq_aborted = 1;
+			break;
+		case SLOGIC_STREAM_OK:
+		case SLOGIC_STREAM_DONE:
+		default:
+			break;
+		}
 	}
 
-	if (devc->timeout_count >= devc->timeout_count_limit) {
-		sr_err("Transfer timeout: duration %.3fms (limit %.3fms), "
-			"rate %.2fMBps (minimum %.2fMBps), average %.2fMBps "
-			"(minimum %.2fMBps), %" G_GUINT64_FORMAT
-			" consecutive slow transfers.",
-				(double)transfers_reached_duration / SR_KHZ(1),
-				(TRANSFERS_DURATION_TOLERANCE + 1) *
-					expected_transfer_duration / SR_KHZ(1),
-				actual_rate,
-				expected_rate * (1.0 - TRANSFERS_DURATION_TOLERANCE),
-				average_rate, expected_rate * 0.95,
-				devc->timeout_count);
-		devc->acq_aborted = 1;
-	}
-
-	if (devc->num_transfers_used == 0) {
+	if (devc->num_transfers_used == 0 && !devc->restart_pending) {
 		devc->acq_aborted = 1;
 	}
 };
@@ -196,6 +209,36 @@ static int handle_events(int fd, int revents, void *cb_data)
 	drvc = di->context;
 
 	// sr_spew("handle_events enter");
+
+	/*
+	 * Zero-progress stall re-arm (session thread). Cancel any in-flight ring;
+	 * once it has fully drained, re-issue the device start sequence in place.
+	 * A control transfer must not be issued from inside a bulk callback (U3
+	 * firmware answers BUSY), so the re-arm happens here, not in
+	 * receive_transfer.
+	 */
+	if (devc->restart_pending && !devc->acq_aborted) {
+		if (devc->num_transfers_used) {
+			for (size_t i = 0; i < NUM_MAX_TRANSFERS; ++i) {
+				if (devc->transfers[i])
+					libusb_cancel_transfer(devc->transfers[i]);
+			}
+		} else {
+			for (size_t i = 0; i < NUM_MAX_TRANSFERS; ++i) {
+				if (devc->transfers[i]) {
+					libusb_free_transfer(devc->transfers[i]);
+					devc->transfers[i] = NULL;
+				}
+			}
+			if (restart_acquisition_after_stall(sdi) != SR_OK) {
+				sr_err("Acquisition stall recovery failed; "
+				       "aborting capture.");
+				devc->acq_aborted = 1;
+			}
+			devc->restart_pending = 0;
+		}
+		return TRUE;
+	}
 
 	if (devc->acq_aborted) {
 		if (devc->num_transfers_used) {
@@ -348,6 +391,103 @@ static int train_bulk_in_transfer(struct dev_context *devc,
 	return SR_OK;
 }
 
+/* Fill and submit the bulk-IN transfer ring (used by acquisition start and the
+ * stall re-arm). Assumes num_transfers_used == 0 and the per-transfer sizing is
+ * already computed. */
+static int submit_bulk_ring(const struct sr_dev_inst *sdi)
+{
+	struct dev_context *devc = sdi->priv;
+	struct sr_usb_dev_inst *usb = sdi->conn;
+	int ret;
+
+	while (devc->num_transfers_used < NUM_MAX_TRANSFERS &&
+	       devc->samples_got_nbytes + devc->num_transfers_used *
+						  devc->per_transfer_nbytes <
+		       devc->samples_need_nbytes) {
+		uint8_t *dev_buf = malloc(devc->per_transfer_nbytes);
+		if (!dev_buf) {
+			sr_dbg("Failed to allocate memory[%d]",
+			       devc->num_transfers_used);
+			break;
+		}
+
+		struct libusb_transfer *transfer = libusb_alloc_transfer(0);
+		if (!transfer) {
+			sr_dbg("Failed to allocate transfer[%d]",
+			       devc->num_transfers_used);
+			free(dev_buf);
+			break;
+		}
+
+		libusb_fill_bulk_transfer(
+			transfer, usb->devhdl, devc->model->ep_in, dev_buf,
+			devc->per_transfer_nbytes, receive_transfer,
+			(void *)sdi,
+			(TRANSFERS_DURATION_TOLERANCE + 1) *
+				devc->per_transfer_duration *
+				(devc->num_transfers_used + 2));
+		transfer->actual_length = 0;
+
+		transfer->flags |= LIBUSB_TRANSFER_FREE_BUFFER;
+		ret = libusb_submit_transfer(transfer);
+		if (ret) {
+			sr_dbg("Failed to submit transfer[%d]: %s.",
+			       devc->num_transfers_used,
+			       libusb_error_name(ret));
+			libusb_free_transfer(transfer);
+			break;
+		}
+		devc->transfers[devc->num_transfers_used] = transfer;
+		devc->num_transfers_used += 1;
+	}
+	sr_dbg("Submitted %u transfers", devc->num_transfers_used);
+
+	return devc->num_transfers_used ? SR_OK : SR_ERR_IO;
+}
+
+/*
+ * Re-issue the device start sequence after a zero-progress stall. Runs on the
+ * session thread with no transfers in flight and nothing delivered to the
+ * frontend, so the capture is recycled in place: stop/flush, reset the stream's
+ * progress/timing for the fresh attempt (keeping run_retried so a second stall
+ * aborts), resubmit the ring, then re-issue RUN.
+ */
+static int restart_acquisition_after_stall(const struct sr_dev_inst *sdi)
+{
+	struct dev_context *devc = sdi->priv;
+	int ret;
+
+	if ((ret = slogic_dev_stop(sdi)) < 0) {
+		sr_err("Stall re-arm: CMD_STOP failed");
+		return ret;
+	}
+
+	devc->samples_got_nbytes = 0;
+	devc->num_transfers_completed = 0;
+	devc->transfers_reached_nbytes = 0;
+	devc->transfers_reached_nbytes_latest = 0;
+	devc->transfers_reached_time_start = g_get_monotonic_time();
+	devc->transfers_reached_time_latest = devc->transfers_reached_time_start;
+	/* Keep stream.run_retried (one re-arm total); clear progress + timing. */
+	devc->stream.received_bytes = 0;
+	devc->stream.time_start_us = 0;
+	devc->stream.time_last_data_us = 0;
+	devc->stream.slow_count = 0;
+
+	if (submit_bulk_ring(sdi) != SR_OK) {
+		sr_err("Stall re-arm: failed to resubmit transfers");
+		return SR_ERR_IO;
+	}
+
+	if ((ret = slogic_dev_start(sdi)) < 0) {
+		sr_err("Stall re-arm: CMD_RUN failed");
+		return ret;
+	}
+
+	sr_info("Acquisition stall recovery: restarted capture.");
+	return SR_OK;
+}
+
 SR_PRIV int sipeed_slogic_acquisition_start(const struct sr_dev_inst *sdi)
 {
 	struct sr_dev_driver *di;
@@ -384,7 +524,7 @@ SR_PRIV int sipeed_slogic_acquisition_start(const struct sr_dev_inst *sdi)
 	devc->num_transfers_completed = 0;
 	memset(devc->transfers, 0, sizeof(devc->transfers));
 	devc->transfers_reached_nbytes = 0;
-	devc->timeout_count = 0;
+	devc->restart_pending = 0;
 	devc->raw_data_queue = g_async_queue_new();
 
 	if (!devc->raw_data_queue) {
@@ -392,51 +532,20 @@ SR_PRIV int sipeed_slogic_acquisition_start(const struct sr_dev_inst *sdi)
 		return SR_ERR_MALLOC;
 	}
 
-	while (devc->num_transfers_used < NUM_MAX_TRANSFERS &&
-	       devc->samples_got_nbytes + devc->num_transfers_used *
-						  devc->per_transfer_nbytes <
-		       devc->samples_need_nbytes) {
-		uint8_t *dev_buf = malloc(devc->per_transfer_nbytes);
-		if (!dev_buf) {
-			sr_dbg("Failed to allocate memory[%d]",
-			       devc->num_transfers_used);
-			break;
-		}
-
-		struct libusb_transfer *transfer = libusb_alloc_transfer(0);
-		if (!transfer) {
-			sr_dbg("Failed to allocate transfer[%d]",
-			       devc->num_transfers_used);
-			free(dev_buf);
-			break;
-		}
-
-		libusb_fill_bulk_transfer(
-			transfer, usb->devhdl, devc->model->ep_in, dev_buf,
-			devc->per_transfer_nbytes, receive_transfer, sdi,
-			(TRANSFERS_DURATION_TOLERANCE + 1) *
-				devc->per_transfer_duration *
-				(devc->num_transfers_used + 2));
-		transfer->actual_length = 0;
-
-		transfer->flags |= LIBUSB_TRANSFER_FREE_BUFFER;
-		ret = libusb_submit_transfer(transfer);
-		if (ret) {
-			sr_dbg("Failed to submit transfer[%d]: %s.",
-			       devc->num_transfers_used,
-			       libusb_error_name(ret));
-			libusb_free_transfer(transfer);
-			break;
-		}
-		devc->transfers[devc->num_transfers_used] = transfer;
-		devc->num_transfers_used += 1;
-	}
-	devc->timeout_count_limit = devc->num_transfers_used;
-	sr_dbg("Submited %u transfers", devc->num_transfers_used);
-
-	if (!devc->num_transfers_used) {
+	if (submit_bulk_ring(sdi) != SR_OK) {
 		return SR_ERR_IO;
 	}
+
+	/* Arm the shared stall watchdog with this capture's transfer plan. */
+	slogic_transfer_plan plan = {
+		.size_bytes = (uint32_t)devc->per_transfer_nbytes,
+		.ring_count = (int)devc->num_transfers_used,
+		.expected_rate_bytes =
+			(uint64_t)devc->expected_rate_MBps * SLOGIC_MHZ(1),
+		.timeout_ms = 0,
+	};
+	slogic_stream_init(&devc->stream, &plan, devc->samples_need_nbytes);
+	devc->restart_pending = 0;
 
 	std_session_send_df_header(sdi);
 	std_session_send_df_frame_begin(sdi);

@@ -69,7 +69,6 @@ struct dev_context {
 
 		size_t num_transfers_completed;
 		size_t num_transfers_used;
-		size_t timeout_count_limit;
 		struct libusb_transfer *transfers[NUM_MAX_TRANSFERS];
 
 		uint64_t transfers_reached_nbytes; /* real received bytes in all */
@@ -78,10 +77,16 @@ struct dev_context {
 		int64_t transfers_reached_time_latest;
 
 		GAsyncQueue *raw_data_queue;
-		uint64_t timeout_count;
 	}; // usb
 
 	int acq_aborted;
+
+	/* Zero-progress stall recovery (shared slogic core policy, all-logic
+	 * canonical). The transfer callback folds each completion into `stream`;
+	 * a RETRY_RUN verdict sets `restart_pending`, and the re-arm (stop, resubmit
+	 * the ring, re-issue RUN) runs on the session thread in handle_events. */
+	slogic_stream stream;
+	int restart_pending;
 
 	/* Triggers */
 	uint64_t capture_ratio;
