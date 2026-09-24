@@ -714,6 +714,13 @@ SR_PRIV int slogic_dev_start(const struct sr_dev_inst *sdi)
 
 	adapter_transport(sdi, &t);
 	adapter_config(sdi, &c);
+	/* Reset before (re)configuring. The device only reliably (re)starts its USB
+	 * stream from a clean reset: dev_open resets once, so the first capture
+	 * streams, but a second session or a stall re-arm that skips the reset finds
+	 * the stream "did not start". Resetting here makes every (re)start uniform.
+	 * slogic_reset is model-aware (a no-op for Combo 8), so this is safe for all. */
+	if (slogic_reset(devc->model, &t) != SLOGIC_OK)
+		return SR_ERR;
 	if (slogic_configure(devc->model, &t, &c) != SLOGIC_OK)
 		return SR_ERR;
 	return slogic_run(devc->model, &t, &c) == SLOGIC_OK ? SR_OK : SR_ERR;
