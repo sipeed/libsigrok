@@ -19,12 +19,12 @@ static const uint64_t rates_32u3[] = {
 	SLOGIC_MHZ(5),   SLOGIC_MHZ(8),   SLOGIC_MHZ(10),  SLOGIC_MHZ(16),
 	SLOGIC_MHZ(20),  SLOGIC_MHZ(25),  SLOGIC_MHZ(32),  SLOGIC_MHZ(40),
 	SLOGIC_MHZ(50),  SLOGIC_MHZ(80),  SLOGIC_MHZ(100), SLOGIC_MHZ(160),
-	SLOGIC_MHZ(200), SLOGIC_MHZ(400), SLOGIC_MHZ(800), SLOGIC_MHZ(1600),
+	SLOGIC_MHZ(200), SLOGIC_MHZ(400), SLOGIC_MHZ(800), SLOGIC_MHZ(1400),
 };
 
-/* 4 ch -> 1600, 8 ch -> 800, 16 ch -> 400, 32 ch -> 200 MHz. */
+/* 4 ch -> 1400, 8 ch -> 800, 16 ch -> 400, 32 ch -> 200 MHz. */
 static const slogic_rate_limit limits_32u3[] = {
-	{ 4, SLOGIC_MHZ(1600) },
+	{ 4, SLOGIC_MHZ(1400) },
 	{ 8, SLOGIC_MHZ(800) },
 	{ 16, SLOGIC_MHZ(400) },
 	{ 32, SLOGIC_MHZ(200) },
