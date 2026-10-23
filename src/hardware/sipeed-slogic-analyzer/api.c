@@ -59,16 +59,19 @@ static unsigned int adapter_channels(const slogic_model *m, int32_t *out)
 	return (unsigned int)m->limit_count;
 }
 
-/* "(10G) Sipeed": the link tag goes first so a truncated device name in a
- * front end still shows it. */
-static void apply_link_name(struct sr_dev_inst *sdi, const char *vendor)
+/* The name every SLogic app shows, "(10G) SLogic32 U3" (slogic_display_name):
+ * the prefix ("(10G)", "(480M)", "(old)") as the vendor so it goes first and
+ * survives a truncated name, the product string as the model. */
+static void apply_link_name(struct sr_dev_inst *sdi)
 {
 	struct dev_context *devc = sdi->priv;
-	const char *tag = slogic_link_tag(devc->link);
+	const char *tag = slogic_name_tag(devc->model, devc->link);
 
 	g_free(sdi->vendor);
-	sdi->vendor = tag ? g_strdup_printf("(%s) %s", tag, vendor)
-			  : g_strdup(vendor);
+	sdi->vendor = tag ? g_strdup_printf("(%s)", tag) : NULL;
+	g_free(sdi->model);
+	sdi->model = g_strdup(devc->model->product ? devc->model->product
+						   : devc->model->name);
 }
 
 /* Channel mode changed: recompute the rate ceiling for it and the link. */
@@ -106,7 +109,7 @@ static GSList *scan(struct sr_dev_driver *di, GSList *options)
 	GSList *devices, *l, *conn_devices, *wanted;
 	const char *conn_opt;
 	char *conn;
-	char cbuf[128], vendor[64];
+	char cbuf[128];
 	struct sr_channel *ch;
 	int32_t i;
 	gchar *channel_name;
@@ -155,13 +158,7 @@ static GSList *scan(struct sr_dev_driver *di, GSList *options)
 			}
 			libusb_get_device_descriptor(libusb_get_device(usb->devhdl), &des);
 
-			libusb_get_string_descriptor_ascii(usb->devhdl,
-				des.iManufacturer, (unsigned char *)cbuf, sizeof(cbuf));
 			sdi = sr_dev_inst_user_new(NULL, NULL, NULL);
-			g_strlcpy(vendor, cbuf, sizeof(vendor));
-			libusb_get_string_descriptor_ascii(usb->devhdl,
-				des.iProduct, (unsigned char *)cbuf, sizeof(cbuf));
-			sdi->model = g_strdup(cbuf);
 			libusb_get_string_descriptor_ascii(usb->devhdl,
 				des.iSerialNumber, (unsigned char *)cbuf, sizeof(cbuf));
 			sdi->serial_num = g_strdup(cbuf);
@@ -176,7 +173,7 @@ static GSList *scan(struct sr_dev_driver *di, GSList *options)
 			sdi->priv = devc;
 			devc->model = model;
 			devc->link = slogic_usb_link(libusb_get_device(usb->devhdl));
-			apply_link_name(sdi, vendor);
+			apply_link_name(sdi);
 			devc->limit_samplechannel =
 				model->limits[model->limit_count - 1].channels;
 			devc->cur_samplerate = UINT64_MAX;
@@ -234,12 +231,7 @@ static int dev_open(struct sr_dev_inst *sdi)
 	/* The link may differ from scan time after a replug. */
 	devc->link = slogic_dev_link(devc->sdev);
 	apply_channel_mode(devc, devc->cur_samplechannel);
-	if (sdi->vendor) {
-		const char *v = strchr(sdi->vendor, ')');
-		gchar *base = g_strdup(v && sdi->vendor[0] == '(' ? v + 2 : sdi->vendor);
-		apply_link_name(sdi, base);
-		g_free(base);
-	}
+	apply_link_name(sdi);
 	devc->voltage_threshold[0] = devc->voltage_threshold[1] = 1.7000000000000004;
 
 	return std_dummy_dev_open(sdi);

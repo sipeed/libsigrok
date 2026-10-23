@@ -52,7 +52,8 @@ enum {
 
 /* ---- USB identity (protocol.md section 1) ---- */
 #define SLOGIC_VID          UINT16_C(0x359f)
-#define SLOGIC_PID_COMBO8   UINT16_C(0x0300)
+#define SLOGIC_PID_8U2      UINT16_C(0x3000) /* SLogic8U2 (Combo 8 protocol) */
+#define SLOGIC_PID_COMBO8   UINT16_C(0x0300) /* same, old firmware: "(old)" */
 #define SLOGIC_PID_16U3     UINT16_C(0x3031)
 #define SLOGIC_PID_32U3     UINT16_C(0x3032)
 #define SLOGIC_PID_DFU      UINT16_C(0x30f1) /* bootloader; not handled here */
@@ -122,10 +123,15 @@ typedef struct slogic_model {
 	const slogic_rate_limit *limits;     /* native channel->max_rate table */
 	size_t limit_count;
 	uint8_t first_drop_bytes;   /* HW quirk: leading stream bytes to drop (0 = none) */
+	const char *product;        /* USB product string, the name shown in the apps */
+	const char *name_tag;       /* device name prefix instead of the link tag (NULL: link) */
 } slogic_model;
 
 /* Registry (defined across slogic.c + slogic16u3.c + slogic32u3.c). */
 const slogic_model *slogic_model_for_pid(uint16_t pid);
+/* Whether a USB device (VID:PID) is an SLogic analyzer the core drives. Front
+ * ends use this instead of their own PID lists (scan, hotplug, reconnect). */
+int slogic_is_analyzer(uint16_t vid, uint16_t pid);
 const slogic_model *const *slogic_models(size_t *count);
 
 /*
@@ -287,8 +293,14 @@ typedef enum {
 } slogic_link;
 
 const char *slogic_link_name(slogic_link link);
-/* Short label for device names: "10G", "5G", "USB2", "USB1"; NULL if unknown. */
+/* Link speed for device names: "10G", "5G", "480M", "12M"; NULL if unknown. */
 const char *slogic_link_tag(slogic_link link);
+/* Device name prefix: "old" for firmware to update, else the link speed;
+ * NULL: no prefix. */
+const char *slogic_name_tag(const slogic_model *m, slogic_link link);
+/* The name every app shows, "(10G) SLogic32 U3", "(480M) SLogic8 U2",
+ * "(old) SLogic8 U2": prefix, then the USB product string. Returns `buf`. */
+char *slogic_display_name(const slogic_model *m, slogic_link link, char *buf, size_t n);
 /* Native ceiling for `nch`, capped for the U3 models to what the link
  * sustains: 5G ~400 MB/s (32U3 on 5G: 4ch@800 ... 32ch@100), USB2 ~40 MB/s. */
 uint64_t slogic_link_max_rate(const slogic_model *m, int nch, slogic_link link);

@@ -49,11 +49,32 @@ const char *slogic_link_tag(slogic_link link)
 	switch (link) {
 	case SLOGIC_LINK_SUPER_PLUS: return "10G";
 	case SLOGIC_LINK_SUPER: return "5G";
-	case SLOGIC_LINK_HIGH: return "USB2";
-	case SLOGIC_LINK_FULL: return "USB1";
+	case SLOGIC_LINK_HIGH: return "480M";
+	case SLOGIC_LINK_FULL: return "12M";
 	case SLOGIC_LINK_UNKNOWN:
 	default: return NULL;
 	}
+}
+
+const char *slogic_name_tag(const slogic_model *m, slogic_link link)
+{
+	if (m && m->name_tag)
+		return m->name_tag;
+	return slogic_link_tag(link);
+}
+
+char *slogic_display_name(const slogic_model *m, slogic_link link, char *buf, size_t n)
+{
+	const char *tag = slogic_name_tag(m, link);
+	const char *name = m ? (m->product ? m->product : m->name) : "SLogic";
+
+	if (!buf || !n)
+		return buf;
+	if (tag)
+		snprintf(buf, n, "(%s) %s", tag, name);
+	else
+		snprintf(buf, n, "%s", name);
+	return buf;
 }
 
 /* Sustained payload a link carries for the U3 stream, in bits/s:

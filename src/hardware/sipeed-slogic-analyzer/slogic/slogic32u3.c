@@ -32,6 +32,7 @@ static const slogic_rate_limit limits_32u3[] = {
 
 const slogic_model slogic_model_32u3 = {
 	.name = "SLogic32U3",
+	.product = "SLogic32 U3",
 	.pid = SLOGIC_PID_32U3,
 	.ep_in = 0x82,
 	.physical_channels = 32,

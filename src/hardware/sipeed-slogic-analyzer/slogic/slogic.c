@@ -22,11 +22,13 @@
 
 /* -------------------- model registry -------------------- */
 
-extern const slogic_model slogic_model_combo8; /* slogic8u2.c */
+extern const slogic_model slogic_model_8u2;    /* slogic8u2.c */
+extern const slogic_model slogic_model_combo8; /* slogic8u2.c, old firmware PID */
 extern const slogic_model slogic_model_16u3;   /* slogic16u3.c */
 extern const slogic_model slogic_model_32u3;   /* slogic32u3.c */
 
 static const slogic_model *const registry[] = {
+	&slogic_model_8u2,
 	&slogic_model_combo8,
 	&slogic_model_16u3,
 	&slogic_model_32u3,
@@ -54,6 +56,11 @@ const slogic_model *slogic_model_for_pid(uint16_t pid)
 			return registry[i];
 	}
 	return NULL;
+}
+
+int slogic_is_analyzer(uint16_t vid, uint16_t pid)
+{
+	return vid == SLOGIC_VID && slogic_model_for_pid(pid) != NULL;
 }
 
 uint64_t slogic_max_rate(const slogic_model *m, int channel_count)

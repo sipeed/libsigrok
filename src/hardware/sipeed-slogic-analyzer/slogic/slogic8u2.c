@@ -29,8 +29,26 @@ static const slogic_rate_limit limits_8u2[] = {
 	{ 8, SLOGIC_MHZ(40) },
 };
 
+const slogic_model slogic_model_8u2 = {
+	.name = "SLogic8U2",
+	.product = "SLogic8 U2",
+	.pid = SLOGIC_PID_8U2,
+	.ep_in = 0x81,
+	.physical_channels = 8,
+	.proto = SLOGIC_PROTO_COMBO8,
+	.max_bandwidth_hz = SLOGIC_MHZ(320),
+	.rates = rates_8u2,
+	.rate_count = sizeof(rates_8u2) / sizeof(rates_8u2[0]),
+	.limits = limits_8u2,
+	.limit_count = sizeof(limits_8u2) / sizeof(limits_8u2[0]),
+	.first_drop_bytes = 0, /* Combo8 stream has no partial-head artifact */
+};
+
+/* The same analyzer on firmware that still enumerates as 0x0300 (SLogic Lite 8 /
+ * Combo 8 era): works the same, named "(old) SLogic8U2" so users update it. */
 const slogic_model slogic_model_combo8 = {
-	.name = "SLogic Combo 8",
+	.name = "SLogic8U2",
+	.product = "SLogic8 U2",
 	.pid = SLOGIC_PID_COMBO8,
 	.ep_in = 0x81,
 	.physical_channels = 8,
@@ -41,4 +59,5 @@ const slogic_model slogic_model_combo8 = {
 	.limits = limits_8u2,
 	.limit_count = sizeof(limits_8u2) / sizeof(limits_8u2[0]),
 	.first_drop_bytes = 0, /* Combo8 stream has no partial-head artifact */
+	.name_tag = "old",     /* old firmware PID: prompt an update */
 };

@@ -33,6 +33,7 @@ static const slogic_rate_limit limits_16u3[] = {
 
 const slogic_model slogic_model_16u3 = {
 	.name = "SLogic16U3",
+	.product = "SLogic16 U3",
 	.pid = SLOGIC_PID_16U3,
 	.ep_in = 0x82,
 	.physical_channels = 16,
