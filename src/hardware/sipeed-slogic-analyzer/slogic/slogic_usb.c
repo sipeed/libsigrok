@@ -63,8 +63,11 @@
 
 #define ALIGN             (32u * 1024u)
 #define XFER_MIN          ALIGN
-#define XFER_MAX          (64u * 1024u * 1024u)
-#define PROBE_MS          250
+#define XFER_MAX          (2u * 1024u * 1024u) /* Linux usbfs default: 16 MB for all */
+#define XFER_TARGET_US    5000  /* ~5 ms of data per transfer */
+#define MIN_IN_FLIGHT     4     /* fewer and the analyzer's FIFO can overflow */
+#define RING_WAITS        4     /* waits for memory a previous capture still holds */
+#define RING_WAIT_MS      25
 #define TIMEOUT_FLOOR_MS  50
 #define STOP_TRIES        10
 #define DRAIN_LOOPS       32
@@ -129,9 +132,6 @@ struct slogic_dev {
 	slogic_log_fn log;
 	void *log_user;
 	int raw_io_max;               /* > 0 when RAW_IO is on (Windows) */
-	uint32_t probed_size;         /* sizing probe cache */
-	int probed_nch;
-	uint64_t probed_rate;
 	slogic_capture *live;
 };
 
@@ -479,6 +479,7 @@ struct slogic_capture {
 
 	struct libusb_transfer *xfer[SLOGIC_MAX_TRANSFERS];
 	int nxfer;
+	int submit_err;               /* libusb error that stopped the last ring submit */
 	uint32_t size;
 	unsigned dur_ms;
 
@@ -707,60 +708,40 @@ static void LIBUSB_CALL xfer_cb(struct libusb_transfer *x)
 	}
 }
 
-/* 250 ms of data, halved while the OS refuses it (usbfs memory limit), under
- * the RAW_IO maximum on Windows, then a quarter so several are in flight. */
-static uint32_t probe_size(slogic_capture *c)
+/* ~5 ms of data per transfer, 32 KiB aligned, within [XFER_MIN, XFER_MAX] and the
+ * RAW_IO maximum on Windows. Small transfers keep many in flight within the OS
+ * limit (Linux usbfs: 16 MB shared by every program by default) and complete
+ * often, so a slow-but-alive stream is never mistaken for silence. */
+static uint32_t pick_size(const slogic_capture *c)
 {
-	slogic_dev *d = c->d;
-	uint64_t bpms = c->rate_bytes / 1000, sz;
+	uint64_t sz = c->rate_bytes * XFER_TARGET_US / 1000000u;
 
-	if (!bpms)
-		bpms = 1;
-	if (d->probed_size && d->probed_nch == c->cfg.dev.channel_count &&
-	    d->probed_rate == c->cfg.dev.samplerate_hz)
-		return d->probed_size;
-
-	sz = (PROBE_MS * bpms + ALIGN - 1) / ALIGN * ALIGN;
-	if (d->raw_io_max > 0 && sz > (uint64_t)d->raw_io_max)
-		sz = (uint64_t)d->raw_io_max & ~(uint64_t)(ALIGN - 1);
-	if (sz > (uint64_t)XFER_MAX * 4)
-		sz = (uint64_t)XFER_MAX * 4;
-	while (sz > XFER_MIN) {
-		struct libusb_transfer *x = libusb_alloc_transfer(0);
-		uint8_t *b = malloc(sz);
-		int r;
-		if (!x || !b) {
-			libusb_free_transfer(x);
-			free(b);
-			sz /= 2;
-			continue;
-		}
-		libusb_fill_bulk_transfer(x, d->h, d->m->ep_in, b, (int)sz, NULL,
-					  NULL, 0);
-		x->flags |= LIBUSB_TRANSFER_FREE_BUFFER | LIBUSB_TRANSFER_FREE_TRANSFER;
-		r = libusb_submit_transfer(x);
-		if (r == LIBUSB_ERROR_NO_MEM) {
-			libusb_free_transfer(x); /* frees b too */
-			sz /= 2;
-			continue;
-		}
-		if (r) {
-			libusb_free_transfer(x);
-			break;
-		}
-		libusb_cancel_transfer(x); /* freed by libusb on completion */
-		break;
-	}
-	sz /= 4;
-	sz = sz / ALIGN * ALIGN;
+	sz = (sz + ALIGN - 1) / ALIGN * ALIGN;
 	if (sz < XFER_MIN)
 		sz = XFER_MIN;
 	if (sz > XFER_MAX)
 		sz = XFER_MAX;
-	d->probed_size = (uint32_t)sz;
-	d->probed_nch = c->cfg.dev.channel_count;
-	d->probed_rate = c->cfg.dev.samplerate_hz;
-	return d->probed_size;
+	if (c->d->raw_io_max > 0 && sz > (uint64_t)c->d->raw_io_max)
+		sz = (uint64_t)c->d->raw_io_max & ~(uint64_t)(ALIGN - 1);
+	if (c->need_raw && sz > c->need_raw)
+		sz = (c->need_raw + ALIGN - 1) / ALIGN * ALIGN;
+	return sz < XFER_MIN ? XFER_MIN : (uint32_t)sz;
+}
+
+/* Transfer size, its duration, and no recycled buffers of the old size. */
+static void set_size(slogic_capture *c, uint32_t size)
+{
+	int i;
+
+	c->size = size;
+	c->dur_ms = (unsigned)(size / (c->rate_bytes / 1000 ? c->rate_bytes / 1000 : 1));
+	if (!c->dur_ms)
+		c->dur_ms = 1;
+	pthread_mutex_lock(&c->qmx);
+	for (i = 0; i < c->nfree; i++)
+		free(c->freelist[i]);
+	c->nfree = 0;
+	pthread_mutex_unlock(&c->qmx);
 }
 
 static void free_ring(slogic_capture *c)
@@ -790,6 +771,7 @@ static int submit_ring(slogic_capture *c)
 	slogic_dev *d = c->d;
 	int i, want = SLOGIC_MAX_TRANSFERS;
 
+	c->submit_err = 0;
 	if (c->need_raw) {
 		uint64_t k = (c->need_raw + c->size - 1) / c->size;
 		if (k < (uint64_t)want)
@@ -812,6 +794,7 @@ static int submit_ring(slogic_capture *c)
 		if (r) {
 			dlog(d, SLOGIC_LOG_DBG, "submit transfer %d: %s", i,
 			     libusb_error_name(r));
+			c->submit_err = r;
 			SL_ADD(&c->in_flight, -1);
 			c->xfer[i] = NULL;
 			free(b);
@@ -821,6 +804,63 @@ static int submit_ring(slogic_capture *c)
 	}
 	c->nxfer = i;
 	return i ? SLOGIC_OK : SLOGIC_ERR_IO;
+}
+
+static int drain_ring_sync(slogic_capture *c, int64_t budget_us);
+
+/*
+ * Submit the ring with at least MIN_IN_FLIGHT transfers (fewer when the whole
+ * capture needs fewer), before RUN. With only one in flight the bulk pipe idles
+ * between completions; the analyzer's FIFO then overflows and the firmware
+ * drops data without telling the host. When the OS refuses transfers (Linux
+ * usbfs memory, which the kernel returns a little after a previous capture
+ * ends), wait for it, then halve the size; warn if it is still too few.
+ */
+static int start_ring(slogic_capture *c)
+{
+	slogic_dev *d = c->d;
+	int waits = 0, want, need;
+
+	for (;;) {
+		want = SLOGIC_MAX_TRANSFERS;
+		if (c->need_raw) {
+			uint64_t k = (c->need_raw + c->size - 1) / c->size;
+			if (k < (uint64_t)want)
+				want = (int)k;
+		}
+		need = want < MIN_IN_FLIGHT ? want : MIN_IN_FLIGHT;
+		submit_ring(c);
+		if (c->nxfer >= need)
+			return SLOGIC_OK;
+		if (c->submit_err != LIBUSB_ERROR_NO_MEM ||
+		    (c->size <= XFER_MIN && waits >= RING_WAITS))
+			break;
+		/* Too few: take them back (RUN is not sent yet, nothing is lost). */
+		SL_STORE(&c->rearm_req, 1); /* cancelled transfers must not abort */
+		if (drain_ring_sync(c, DESTROY_WAIT_US) != SLOGIC_OK) {
+			dlog(d, SLOGIC_LOG_ERR, "transfers did not drain; leaking them");
+			return SLOGIC_ERR_IO;
+		}
+		SL_STORE(&c->rearm_req, 0);
+		SL_STORE(&c->aborted, 0);
+		if (waits < RING_WAITS) {
+			waits++;
+			sleep_ms(RING_WAIT_MS);
+		} else {
+			waits = 0;
+			set_size(c, c->size / 2 / ALIGN * ALIGN < XFER_MIN ? XFER_MIN
+							       : c->size / 2 / ALIGN * ALIGN);
+		}
+	}
+	if (!c->nxfer)
+		return SLOGIC_ERR_IO;
+	dlog(d, SLOGIC_LOG_WARN, "only %d USB transfer%s of %u bytes in flight (wanted %d): "
+	     "%s; data may be lost", c->nxfer, c->nxfer == 1 ? "" : "s", c->size, need,
+	     c->submit_err == LIBUSB_ERROR_NO_MEM
+		     ? "the OS refused more (Linux: raise /sys/module/usbcore/"
+		       "parameters/usbfs_memory_mb)"
+		     : libusb_error_name(c->submit_err));
+	return SLOGIC_OK;
 }
 
 /* Cancel and wait for the ring from the host thread; leaks on timeout. */
@@ -915,16 +955,11 @@ int slogic_capture_start(slogic_dev *d, const slogic_capture_config *cfg,
 		return r == SLOGIC_ERR_ARG ? r : SLOGIC_ERR_IO;
 	}
 
-	c->size = probe_size(c);
-	if (c->need_raw && c->size > c->need_raw)
-		c->size = (uint32_t)((c->need_raw + ALIGN - 1) / ALIGN * ALIGN);
-	c->dur_ms = (unsigned)(c->size / (c->rate_bytes / 1000 ? c->rate_bytes / 1000 : 1));
-	if (!c->dur_ms)
-		c->dur_ms = 1;
+	set_size(c, pick_size(c));
 
 	c->t_prev = now_us();
 	slogic_ratefit_init(&c->fit, 0);
-	if (submit_ring(c) != SLOGIC_OK) {
+	if (start_ring(c) != SLOGIC_OK) {
 		dlog(d, SLOGIC_LOG_ERR, "cannot submit any USB transfer");
 		capture_free(c);
 		return SLOGIC_ERR_IO;
@@ -1035,7 +1070,7 @@ static int rearm(slogic_capture *c)
 	SL_STORE(&c->rearm_req, 0);
 	c->t_prev = now_us();
 	slogic_ratefit_init(&c->fit, 0);
-	if (submit_ring(c) != SLOGIC_OK)
+	if (start_ring(c) != SLOGIC_OK)
 		return SLOGIC_ERR_IO;
 	stream_rearm_reset(c);
 	c->t_run = now_us();
