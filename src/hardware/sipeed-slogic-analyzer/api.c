@@ -80,6 +80,17 @@ static void apply_channel_mode(struct dev_context *devc, int32_t nch)
 		devc->cur_samplerate = devc->limit_samplerate;
 }
 
+/* Whether `usb` is one of the devices in `list` (same bus and address). */
+static gboolean usb_in(GSList *list, const struct sr_usb_dev_inst *usb)
+{
+	for (; list; list = list->next) {
+		const struct sr_usb_dev_inst *w = list->data;
+		if (w->bus == usb->bus && w->address == usb->address)
+			return TRUE;
+	}
+	return FALSE;
+}
+
 static GSList *scan(struct sr_dev_driver *di, GSList *options)
 {
 	int ret;
@@ -92,7 +103,8 @@ static GSList *scan(struct sr_dev_driver *di, GSList *options)
 	size_t mi, nmodels;
 	struct sr_config *option;
 	struct libusb_device_descriptor des;
-	GSList *devices, *l, *conn_devices;
+	GSList *devices, *l, *conn_devices, *wanted;
+	const char *conn_opt;
 	char *conn;
 	char cbuf[128], vendor[64];
 	struct sr_channel *ch;
@@ -101,15 +113,26 @@ static GSList *scan(struct sr_dev_driver *di, GSList *options)
 
 	devices = NULL;
 	drvc = di->context;
+	conn_opt = NULL;
 
 	for (l = options; l; l = l->next) {
 		option = l->data;
 		switch (option->key) {
 		case SR_CONF_CONN:
-			sr_err("conn= is not supported for this driver.");
-			return NULL;
+			conn_opt = g_variant_get_string(option->data, NULL);
+			break;
 		default:
 			sr_warn("Unhandled option key: %u", option->key);
+		}
+	}
+
+	/* conn=VID.PID or conn=BUS.ADDRESS picks among several analyzers. */
+	wanted = NULL;
+	if (conn_opt) {
+		wanted = sr_usb_find(drvc->sr_ctx->libusb_ctx, conn_opt);
+		if (!wanted) {
+			sr_err("No USB device matches conn=%s.", conn_opt);
+			return std_scan_complete(di, NULL);
 		}
 	}
 
@@ -121,9 +144,15 @@ static GSList *scan(struct sr_dev_driver *di, GSList *options)
 		g_free(conn);
 		for (l = conn_devices; l; l = l->next) {
 			usb = l->data;
-			ret = sr_usb_open(drvc->sr_ctx->libusb_ctx, usb);
-			if (SR_OK != ret)
+			if (wanted && !usb_in(wanted, usb)) {
+				sr_usb_dev_inst_free(usb);
 				continue;
+			}
+			ret = sr_usb_open(drvc->sr_ctx->libusb_ctx, usb);
+			if (SR_OK != ret) {
+				sr_usb_dev_inst_free(usb);
+				continue;
+			}
 			libusb_get_device_descriptor(libusb_get_device(usb->devhdl), &des);
 
 			libusb_get_string_descriptor_ascii(usb->devhdl,
@@ -170,7 +199,9 @@ static GSList *scan(struct sr_dev_driver *di, GSList *options)
 			sr_usb_close(usb);
 			devices = g_slist_append(devices, sdi);
 		}
+		g_slist_free(conn_devices);
 	}
+	g_slist_free_full(wanted, (GDestroyNotify)sr_usb_dev_inst_free);
 
 	return std_scan_complete(di, devices);
 }
