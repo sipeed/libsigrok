@@ -153,6 +153,11 @@ static GSList *scan(struct sr_dev_driver *di, GSList *options)
 			}
 			ret = sr_usb_open(drvc->sr_ctx->libusb_ctx, usb);
 			if (SR_OK != ret) {
+				/* Otherwise the user only sees "No devices found". */
+				sr_warn("%s at USB %d.%d cannot be opened: it is in use "
+					"by another program (close other SLogic or test "
+					"tools) or not accessible (Linux: udev rule).",
+					model->name, usb->bus, usb->address);
 				sr_usb_dev_inst_free(usb);
 				continue;
 			}
